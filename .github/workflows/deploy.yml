@@ -21,12 +21,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          # 顯式禁用快取，防止其自動搜尋鎖定檔
-          cache: ''
           
       - name: Install dependencies
-        # 使用 --package-lock-only 可以在沒有鎖定檔時自動生成一個，或直接使用 --no-package-lock
-        run: npm install --no-package-lock
+        # 移除 --no-package-lock，既然我們已經提供了鎖定檔，就讓 npm 正常讀取它
+        run: npm install
         
       - name: Build
         run: npm run build
