@@ -1,0 +1,7 @@
+{
+  "name": "校園性平事件智慧助手 v4.5",
+  "description": "精通台灣《性別平等教育法》與《校園性別事件防治準則》的專業助手。提供案件進度追蹤、法定時效檢核及 AI 法規樣態分析功能。",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
