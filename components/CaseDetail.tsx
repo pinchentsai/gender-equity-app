@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { CaseData, CaseDates, KnowledgeFile, Meeting, InterviewTranscript } from '../types';
 import { PHASES_DATA, getIcon } from '../constants';
-import { formatDate, isOverdue } from '../utils/dateUtils';
+import { formatDate, isOverdue, DEADLINE_TASK_MAP } from '../utils/dateUtils';
 import GeminiAssistant from './GeminiAssistant';
 import ProgressBar from './ProgressBar';
 import { callGeminiMeetingAssistant, callGeminiReportGenerator } from '../services/geminiService';
@@ -53,7 +53,7 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
     const newMeeting: Meeting = {
       id: Date.now().toString(),
       date: new Date().toISOString().split('T')[0],
-      title: `第 ${activeCase.meetings?.length || 0 + 1} 次星軌會議`,
+      title: `第 ${(activeCase.meetings?.length || 0) + 1} 次星軌會議`,
       phaseId: progressStats.currentPhase,
       agenda: '',
       minutes: ''
@@ -68,11 +68,13 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
       const agenda = await callGeminiMeetingAssistant('agenda', {
         caseName: activeCase.name,
         description: activeCase.description,
-        phaseTitle: phase?.title || "未知階段"
+        phaseTitle: phase?.title || "未知階段",
+        meetingTitle: meeting.title
       });
       const updated = activeCase.meetings.map(m => m.id === meeting.id ? { ...m, agenda: agenda || "" } : m);
       onUpdateActiveCase({ meetings: updated });
     } catch (err) {
+      console.error("Agenda generation error:", err);
       alert("時空通訊中斷，無法草擬議程。");
     } finally {
       setLoadingState(null);
@@ -98,15 +100,28 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const text = reader.result as string;
-      const updated = activeCase.meetings.map(m => 
-        m.id === meetingId ? { ...m, transcript: text } : m
-      );
-      onUpdateActiveCase({ meetings: updated });
-    };
-    reader.readAsText(file);
+    let text = "";
+    if (file.name.endsWith('.docx')) {
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const result = await (window as any).mammoth.extractRawText({ arrayBuffer });
+        text = result.value;
+      } catch (err) {
+        alert("Word 檔案解析失敗。");
+        return;
+      }
+    } else {
+      text = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.readAsText(file);
+      });
+    }
+
+    const updated = activeCase.meetings.map(m => 
+      m.id === meetingId ? { ...m, transcript: text } : m
+    );
+    onUpdateActiveCase({ meetings: updated });
   };
 
   const handleGenerateMinutes = async (meeting: Meeting) => {
@@ -120,6 +135,7 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
         caseName: activeCase.name,
         description: activeCase.description,
         phaseTitle: "",
+        meetingTitle: meeting.title,
         agenda: meeting.agenda,
         recordingData: meeting.recordingData,
         recordingMimeType: meeting.recordingMimeType,
@@ -128,6 +144,7 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
       const updated = activeCase.meetings.map(m => m.id === meeting.id ? { ...m, minutes: minutes || "" } : m);
       onUpdateActiveCase({ meetings: updated });
     } catch (err) {
+      console.error("Minutes generation error:", err);
       alert("轉錄解析失敗。");
     } finally {
       setLoadingState(null);
@@ -139,7 +156,6 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
     onUpdateActiveCase({ meetings: activeCase.meetings.filter(m => m.id !== id) });
   };
 
-  // 調查報告相關邏輯
   const handleUploadReportTranscript = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -148,13 +164,27 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      const text = await new Promise<string>((resolve) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result as string);
-        reader.readAsText(file);
-      });
+      let text = "";
+      
+      if (file.name.endsWith('.docx')) {
+        try {
+          const arrayBuffer = await file.arrayBuffer();
+          const result = await (window as any).mammoth.extractRawText({ arrayBuffer });
+          text = result.value;
+        } catch (err) {
+          console.error(`Failed to parse docx: ${file.name}`, err);
+          continue;
+        }
+      } else {
+        text = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.readAsText(file);
+        });
+      }
+
       newTranscripts.push({
-        id: Date.now().toString() + i,
+        id: Date.now().toString() + i + Math.random(),
         name: file.name.replace(/\.[^/.]+$/, ""),
         content: text
       });
@@ -168,12 +198,17 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
       alert("請先上傳至少一份訪談逐字稿。");
       return;
     }
+    
     setLoadingState('report-generating');
+    console.debug("啟動調查報告生成，案名:", activeCase.name);
+    
     try {
-      const report = await callGeminiReportGenerator(activeCase, globalFiles);
+      const report = await callGeminiReportGenerator(activeCase);
       onUpdateActiveCase({ investigationReport: report || "" });
+      console.debug("報告生成完成");
     } catch (err) {
-      alert("報告生成失敗，請確認 AI 服務狀態。");
+      console.error("Report Generation Error:", err);
+      alert("報告生成失敗，請檢查網路連線或 API 金鑰權限。");
     } finally {
       setLoadingState(null);
     }
@@ -196,19 +231,19 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
         <div className="flex bg-white/50 p-1 rounded-full border border-tiffany/20 shadow-sm overflow-x-auto no-scrollbar">
           <button 
             onClick={() => setTab('info')}
-            className={`px-6 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all whitespace-nowrap ${tab === 'info' ? 'bg-tiffany text-white shadow-md' : 'text-slate-400 hover:text-tiffany-deep'}`}
+            className={`px-6 py-2 rounded-full text-[12px] font-bold uppercase tracking-widest transition-all whitespace-nowrap ${tab === 'info' ? 'bg-tiffany text-white shadow-md' : 'text-slate-400 hover:text-tiffany-deep'}`}
           >
             星軌資訊
           </button>
           <button 
             onClick={() => setTab('meetings')}
-            className={`px-6 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all whitespace-nowrap ${tab === 'meetings' ? 'bg-tiffany text-white shadow-md' : 'text-slate-400 hover:text-tiffany-deep'}`}
+            className={`px-6 py-2 rounded-full text-[12px] font-bold uppercase tracking-widest transition-all whitespace-nowrap ${tab === 'meetings' ? 'bg-tiffany text-white shadow-md' : 'text-slate-400 hover:text-tiffany-deep'}`}
           >
             會議紀錄 ({activeCase.meetings?.length || 0})
           </button>
           <button 
             onClick={() => setTab('report')}
-            className={`px-6 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all whitespace-nowrap ${tab === 'report' ? 'bg-tiffany text-white shadow-md' : 'text-slate-400 hover:text-tiffany-deep'}`}
+            className={`px-6 py-2 rounded-full text-[12px] font-bold uppercase tracking-widest transition-all whitespace-nowrap ${tab === 'report' ? 'bg-tiffany text-white shadow-md' : 'text-slate-400 hover:text-tiffany-deep'}`}
           >
             調查報告
           </button>
@@ -257,36 +292,6 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div>
-                  <label className="block text-[14px] font-bold text-red-400 uppercase tracking-widest mb-3">1. 獲知日期 (知悉日)</label>
-                  <input 
-                    type="date" 
-                    className="w-full p-4 bg-white/80 border border-red-200 rounded-2xl focus:ring-4 focus:ring-red-500/5 outline-none font-bold text-slate-700 shadow-sm" 
-                    value={activeCase.dates.known} 
-                    onChange={(e) => onUpdateDates('known', e.target.value)} 
-                  />
-                </div>
-                <div>
-                  <label className="block text-[14px] font-bold text-blue-400 uppercase tracking-widest mb-3">2. 收件日期 (申請書)</label>
-                  <input 
-                    type="date" 
-                    className="w-full p-4 bg-white/80 border border-blue-200 rounded-2xl focus:ring-4 focus:ring-blue-500/5 outline-none font-bold text-slate-700 shadow-sm" 
-                    value={activeCase.dates.application} 
-                    onChange={(e) => onUpdateDates('application', e.target.value)} 
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div>
-                  <label className="block text-[14px] font-bold text-purple-400 uppercase tracking-widest mb-3">3. 性平會決議受理日 (調查起算點)</label>
-                  <input 
-                    type="date" 
-                    className="w-full p-4 bg-white/80 border border-purple-200 rounded-2xl focus:ring-4 focus:ring-purple-500/5 outline-none font-bold text-slate-700 shadow-sm" 
-                    value={activeCase.dates.acceptance} 
-                    onChange={(e) => onUpdateDates('acceptance', e.target.value)} 
-                  />
-                </div>
                 <div className="flex items-end pb-1">
                    <div className="bg-white/50 p-4 rounded-2xl flex items-center gap-6 border border-white w-full">
                     <span className="text-[14px] font-black text-tiffany-deep uppercase tracking-widest">案件管道</span>
@@ -301,6 +306,48 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
                       </label>
                     </div>
                   </div>
+                </div>
+                <div>
+                  <label className="block text-[14px] font-bold text-red-400 uppercase tracking-widest mb-3">1. 獲知日期 (知悉日)</label>
+                  <input 
+                    type="date" 
+                    className="w-full p-4 bg-white/80 border border-red-200 rounded-2xl focus:ring-4 focus:ring-red-500/5 outline-none font-bold text-slate-700 shadow-sm" 
+                    value={activeCase.dates.known} 
+                    onChange={(e) => onUpdateDates('known', e.target.value)} 
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div>
+                  <label className="block text-[14px] font-bold text-blue-400 uppercase tracking-widest mb-3">2. 收件日期 (申請書)</label>
+                  <input 
+                    type="date" 
+                    className="w-full p-4 bg-white/80 border border-blue-200 rounded-2xl focus:ring-4 focus:ring-blue-500/5 outline-none font-bold text-slate-700 shadow-sm" 
+                    value={activeCase.dates.application} 
+                    onChange={(e) => onUpdateDates('application', e.target.value)} 
+                  />
+                </div>
+                <div>
+                  <label className="block text-[14px] font-bold text-purple-400 uppercase tracking-widest mb-3">3. 性平會決議受理日 (調查起算點)</label>
+                  <input 
+                    type="date" 
+                    className="w-full p-4 bg-white/80 border border-purple-200 rounded-2xl focus:ring-4 focus:ring-purple-500/5 outline-none font-bold text-slate-700 shadow-sm" 
+                    value={activeCase.dates.acceptance} 
+                    onChange={(e) => onUpdateDates('acceptance', e.target.value)} 
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div>
+                  <label className="block text-[14px] font-bold text-teal-500 uppercase tracking-widest mb-3">4. 處理結果通知送達日</label>
+                  <input 
+                    type="date" 
+                    className="w-full p-4 bg-white/80 border border-teal-200 rounded-2xl focus:ring-4 focus:ring-teal-500/5 outline-none font-bold text-slate-700 shadow-sm" 
+                    value={activeCase.dates.resultNotice} 
+                    onChange={(e) => onUpdateDates('resultNotice', e.target.value)} 
+                  />
                 </div>
               </div>
 
@@ -318,25 +365,17 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
 
                 {showAdvancedDates && (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8 animate-fadeIn">
-                    <div className="p-5 bg-white/40 rounded-3xl border border-white shadow-sm border-l-4 border-l-orange-400">
-                      <label className="block text-[14px] font-bold text-slate-400 uppercase tracking-widest mb-3">2.5 不受理通知送達日</label>
-                      <input type="date" className="w-full p-4 bg-white/80 border border-orange-100 rounded-2xl text-sm font-bold text-slate-700 outline-none focus:ring-4 focus:ring-orange-500/5 shadow-sm" value={activeCase.dates.nonAcceptanceNotice} onChange={(e) => onUpdateDates('nonAcceptanceNotice', e.target.value)} />
-                    </div>
                     <div className="p-5 bg-white/40 rounded-3xl border border-white shadow-sm border-l-4 border-l-purple-400">
                       <label className="block text-[14px] font-bold text-slate-400 uppercase tracking-widest mb-3">5.1 權責機關接獲調查報告日</label>
-                      <input type="date" className="w-full p-4 bg-white/80 border border-purple-100 rounded-2xl text-sm font-bold text-slate-700 outline-none focus:ring-4 focus:ring-purple-500/5 shadow-sm" value={activeCase.dates.reportHandover} onChange={(e) => onUpdateDates('reportHandover', e.target.value)} />
-                    </div>
-                    <div className="p-5 bg-white/40 rounded-3xl border border-white shadow-sm border-l-4 border-l-blue-400">
-                      <label className="block text-[14px] font-bold text-slate-400 uppercase tracking-widest mb-3">6.1 處理結果通知送達日</label>
-                      <input type="date" className="w-full p-4 bg-white/80 border border-blue-100 rounded-2xl text-sm font-bold text-slate-700 outline-none focus:ring-4 focus:ring-blue-500/5 shadow-sm" value={activeCase.dates.resultNotice} onChange={(e) => onUpdateDates('resultNotice', e.target.value)} />
+                      <input type="date" className="w-full p-4 bg-white/80 border border-purple-100 rounded-2xl text-[12px] font-bold text-slate-700 outline-none focus:ring-4 focus:ring-purple-500/5 shadow-sm" value={activeCase.dates.reportHandover} onChange={(e) => onUpdateDates('reportHandover', e.target.value)} />
                     </div>
                     <div className="p-5 bg-white/40 rounded-3xl border border-white shadow-sm border-l-4 border-l-teal-400">
-                      <label className="block text-[14px] font-bold text-slate-400 uppercase tracking-widest mb-3">6.2 收到申復書日期</label>
-                      <input type="date" className="w-full p-4 bg-white/80 border border-teal-100 rounded-2xl text-sm font-bold text-slate-700 outline-none focus:ring-4 focus:ring-teal-500/5 shadow-sm" value={activeCase.dates.appealReceive} onChange={(e) => onUpdateDates('appealReceive', e.target.value)} />
+                      <label className="block text-[14px] font-bold text-slate-400 uppercase tracking-widest mb-3">6.1 收到申復書日期</label>
+                      <input type="date" className="w-full p-4 bg-white/80 border border-teal-100 rounded-2xl text-[12px] font-bold text-slate-700 outline-none focus:ring-4 focus:ring-teal-500/5 shadow-sm" value={activeCase.dates.appealReceive} onChange={(e) => onUpdateDates('appealReceive', e.target.value)} />
                     </div>
                     <div className="p-5 bg-white/40 rounded-3xl border border-white shadow-sm border-l-4 border-l-indigo-400">
                       <label className="block text-[14px] font-bold text-slate-400 uppercase tracking-widest mb-3">6.4 申復決定書送達日</label>
-                      <input type="date" className="w-full p-4 bg-white/80 border border-indigo-100 rounded-2xl text-sm font-bold text-slate-700 outline-none focus:ring-4 focus:ring-indigo-500/5 shadow-sm" value={activeCase.dates.appealDecisionNotice} onChange={(e) => onUpdateDates('appealDecisionNotice', e.target.value)} />
+                      <input type="date" className="w-full p-4 bg-white/80 border border-indigo-100 rounded-2xl text-[12px] font-bold text-slate-700 outline-none focus:ring-4 focus:ring-indigo-500/5 shadow-sm" value={activeCase.dates.appealDecisionNotice} onChange={(e) => onUpdateDates('appealDecisionNotice', e.target.value)} />
                     </div>
                   </div>
                 )}
@@ -357,16 +396,28 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
                 {[
                   { label: '法定通報期限', key: 'report', color: 'border-orange-400' },
                   { label: '受理審查期限', key: 'handover', color: 'border-white' },
-                  { label: '受理議決期限', key: 'meetingDecide', color: 'border-tiffany' },
-                  { label: '調查結案期限', key: 'investigation', color: 'border-white' }
-                ].map(item => (
-                  <div key={item.key} className={`p-5 rounded-2xl bg-white/5 border-l-4 ${item.color}`}>
-                    <div className="text-[9px] text-slate-400 font-black mb-1 uppercase tracking-widest">{item.label}</div>
-                    <div className={`text-sm font-bold ${isOverdue(deadlines[item.key]) ? 'text-red-400' : 'text-white'}`}>
-                      {formatDate(deadlines[item.key]).split(' ')[0]}
+                  { label: '受理通知期限', key: 'meetingDecide', color: 'border-tiffany' },
+                  { label: '調查結案期限', key: 'investigation', color: 'border-white' },
+                  { label: '申復期限', key: 'resultAppeal', color: 'border-blue-400' },
+                  { label: '提起救濟期限', key: 'remedy', color: 'border-indigo-400' }
+                ].filter(item => !!deadlines[item.key]).map(item => {
+                  const taskId = DEADLINE_TASK_MAP[item.key];
+                  const isCompleted = activeCase.checklist?.[taskId] || false;
+                  const overdue = isOverdue(deadlines[item.key], isCompleted);
+
+                  return (
+                    <div key={item.key} className={`p-5 rounded-2xl bg-white/5 border-l-4 transition-all ${isCompleted ? 'border-green-400 bg-green-400/5' : item.color}`}>
+                      <div className="flex justify-between items-start mb-1">
+                        <div className="text-[12px] text-slate-400 font-black uppercase tracking-widest">{item.label}</div>
+                        {isCompleted && <CheckCircle className="w-3 h-3 text-green-400" />}
+                      </div>
+                      <div className={`text-sm font-bold ${overdue ? 'text-red-400' : isCompleted ? 'text-green-400' : 'text-white'}`}>
+                        {formatDate(deadlines[item.key]).split(' ')[0]}
+                      </div>
+                      {isCompleted && <div className="text-[12px] text-green-400/60 font-bold mt-1 uppercase">任務 {taskId} 已完成</div>}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </section>
           )}
@@ -399,7 +450,7 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
                       </div>
                       <div>
                         <h3 className="font-bold text-slate-700 text-sm">{phase.title}</h3>
-                        <div className="text-[10px] font-black text-tiffany-deep/60 mt-1 uppercase tracking-widest">
+                        <div className="text-[12px] font-black text-tiffany-deep/60 mt-1 uppercase tracking-widest">
                           完成度：{completedCount} / {phase.tasks.length}
                         </div>
                       </div>
@@ -423,9 +474,9 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
                               <span className={`font-bold text-sm ${task.important ? 'text-red-500' : 'text-slate-700'} ${activeCase.checklist?.[task.id] ? 'line-through opacity-40' : ''}`}>
                                 {task.text}
                               </span>
-                              {task.unit && <span className="text-[10px] bg-white border border-tiffany/5 text-tiffany-deep/70 px-3 py-0.5 rounded-full font-bold">{task.unit}</span>}
+                              {task.unit && <span className="text-[12px] bg-white border border-tiffany/5 text-tiffany-deep/70 px-3 py-0.5 rounded-full font-bold">{task.unit}</span>}
                             </div>
-                            {task.note && <p className="text-xs text-slate-400 leading-relaxed mt-3 border-l-2 border-tiffany/10 pl-4">{task.note}</p>}
+                            {task.note && <p className="text-[12px] text-slate-400 leading-relaxed mt-3 border-l-2 border-tiffany/10 pl-4">{task.note}</p>}
                           </div>
                         </div>
                       ))}
@@ -445,7 +496,7 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
             </div>
             <button 
               onClick={handleCreateMeeting}
-              className="px-8 py-3 btn-outer-senshi rounded-full font-bold text-xs uppercase tracking-widest flex items-center"
+              className={`px-8 py-3 btn-outer-senshi rounded-full font-bold text-[12px] uppercase tracking-widest flex items-center`}
             >
               <Plus className="w-4 h-4 mr-2"/>
               新增議程
@@ -453,9 +504,9 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
           </div>
 
           {(!activeCase.meetings || activeCase.meetings.length === 0) ? (
-            <div className="text-center py-32 outer-tiffany-card border-dashed border-tiffany/20">
+            <div className="text-center py-32 outer-tiffany-card border-dashed border-tiffany/30">
               <Mic className="w-16 h-16 text-tiffany/20 mx-auto mb-6" />
-              <p className="text-tiffany/40 font-bold uppercase tracking-widest text-xs">尚無會議紀錄軌跡</p>
+              <p className="text-tiffany/40 font-bold uppercase tracking-widest text-[12px]">尚無會議紀錄軌跡</p>
             </div>
           ) : (
             <div className="space-y-8">
@@ -471,34 +522,44 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
                     <div className="p-4 bg-tiffany/10 rounded-2xl text-tiffany-deep">
                       <FileText className="w-6 h-6"/>
                     </div>
-                    <div>
+                    <div className="flex-1">
                       <div className="flex items-center gap-4 mb-2">
-                        <span className="text-[10px] font-black bg-tiffany text-white px-3 py-0.5 rounded-full uppercase tracking-widest">階段 {meeting.phaseId}</span>
+                        <span className="text-[12px] font-black bg-tiffany text-white px-3 py-0.5 rounded-full uppercase tracking-widest">階段 {meeting.phaseId}</span>
                         <input type="date" value={meeting.date} onChange={(e) => {
                           const updated = activeCase.meetings.map(m => m.id === meeting.id ? { ...m, date: e.target.value } : m);
                           onUpdateActiveCase({ meetings: updated });
                         }} className="text-xs font-bold text-slate-400 bg-transparent border-none outline-none" />
                       </div>
-                      <input type="text" value={meeting.title} onChange={(e) => {
-                        const updated = activeCase.meetings.map(m => m.id === meeting.id ? { ...m, title: e.target.value } : m);
-                        onUpdateActiveCase({ meetings: updated });
-                      }} className="text-2xl font-bold text-slate-700 bg-transparent border-none outline-none w-full cinzel" />
+                      <div className="relative group/input">
+                        <input 
+                          type="text" 
+                          value={meeting.title} 
+                          onChange={(e) => {
+                            const updated = activeCase.meetings.map(m => m.id === meeting.id ? { ...m, title: e.target.value } : m);
+                            onUpdateActiveCase({ meetings: updated });
+                          }} 
+                          className="text-2xl font-bold text-slate-700 bg-transparent border-b-2 border-transparent focus:border-tiffany outline-none w-full cinzel py-1 transition-all"
+                          placeholder="請輸入會議主題 (AI 議程生成之核心主題)..."
+                        />
+                        <div className="absolute left-0 -bottom-4 text-[12px] font-bold text-tiffany-deep opacity-0 group-focus-within/input:opacity-100 transition-opacity">
+                          ✦ 具體的主題名稱有助於生成更貼切的議程
+                        </div>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-                    {/* 議程區 */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 mt-6">
                     <div className="space-y-4">
                       <div className="flex justify-between items-center">
-                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center">
+                        <h4 className="text-[12px] font-black text-slate-400 uppercase tracking-widest flex items-center">
                           <BookOpen className="w-4 h-4 mr-2 text-tiffany"/> 會議議程草案
                         </h4>
                         <button 
                           onClick={() => handleDraftAgenda(meeting)}
                           disabled={!!loadingState}
-                          className="text-[10px] font-bold text-tiffany-deep hover:underline disabled:opacity-30"
+                          className="text-[12px] font-bold text-tiffany-deep hover:underline disabled:opacity-30 flex items-center gap-1"
                         >
-                          {loadingState === meeting.id + '-agenda' ? '生成中...' : '✦ 自動草擬議程'}
+                          {loadingState === meeting.id + '-agenda' ? '生成中...' : <><Sparkles className="w-3 h-3"/> 根據主題草擬議程</>}
                         </button>
                       </div>
                       <textarea 
@@ -508,14 +569,13 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
                           const updated = activeCase.meetings.map(m => m.id === meeting.id ? { ...m, agenda: e.target.value } : m);
                           onUpdateActiveCase({ meetings: updated });
                         }}
-                        placeholder="點擊上方按鈕自動生成，或在此手動輸入..."
+                        placeholder="請先在上方輸入會議主題，再點擊「根據主題草擬議程」..."
                       />
                     </div>
 
-                    {/* 紀錄區 */}
                     <div className="space-y-4">
                       <div className="flex justify-between items-center">
-                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center">
+                        <h4 className="text-[12px] font-black text-slate-400 uppercase tracking-widest flex items-center">
                           <Mic className="w-4 h-4 mr-2 text-tiffany"/> 會議紀錄實錄
                         </h4>
                         <div className="flex gap-4">
@@ -524,7 +584,7 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
                               setTargetMeetingId(meeting.id);
                               fileInputRef.current?.click();
                             }}
-                            className="text-[10px] font-bold text-tiffany-deep hover:underline"
+                            className="text-[12px] font-bold text-tiffany-deep hover:underline"
                           >
                             {meeting.recordingData ? '更換錄音' : '✦ 上傳錄音'}
                           </button>
@@ -533,7 +593,7 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
                               setTargetMeetingId(meeting.id);
                               transcriptInputRef.current?.click();
                             }}
-                            className="text-[10px] font-bold text-tiffany-deep hover:underline"
+                            className="text-[12px] font-bold text-tiffany-deep hover:underline"
                           >
                             {meeting.transcript ? '更換逐字稿' : '✦ 上傳逐字稿'}
                           </button>
@@ -541,7 +601,7 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
                             <button 
                               onClick={() => handleGenerateMinutes(meeting)}
                               disabled={!!loadingState}
-                              className="text-[10px] font-bold text-purple-500 hover:underline disabled:opacity-30"
+                              className="text-[12px] font-bold text-purple-500 hover:underline disabled:opacity-30"
                             >
                               {loadingState === meeting.id + '-minutes' ? '轉錄中...' : '✦ 生成會議紀錄'}
                             </button>
@@ -560,7 +620,7 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
                         />
                         {(meeting.recordingData || meeting.transcript) && !meeting.minutes && (
                           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                            <div className="bg-white/80 px-6 py-3 rounded-full shadow-lg border border-tiffany/20 text-[10px] font-bold text-tiffany-deep animate-pulse flex items-center">
+                            <div className="bg-white/80 px-6 py-3 rounded-full shadow-lg border border-tiffany/20 text-[12px] font-bold text-tiffany-deep animate-pulse flex items-center">
                               <CheckCircle className="w-4 h-4 mr-2"/> 
                               {meeting.transcript && meeting.recordingData ? "錄音與逐字稿皆已就緒" : meeting.transcript ? "逐字稿已就緒" : "錄音已就緒"}
                             </div>
@@ -575,7 +635,6 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
           )}
         </div>
       ) : (
-        /* 調查報告分頁內容 */
         <div className="animate-fadeIn space-y-12">
           <div className="flex justify-between items-center px-4">
             <div>
@@ -584,7 +643,7 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
             </div>
             <button 
               onClick={() => reportTranscriptInputRef.current?.click()}
-              className="px-8 py-3 btn-outer-senshi rounded-full font-bold text-xs uppercase tracking-widest flex items-center"
+              className="px-8 py-3 btn-outer-senshi rounded-full font-bold text-[12px] uppercase tracking-widest flex items-center"
             >
               <Plus className="w-4 h-4 mr-2"/>
               匯入訪談逐字稿
@@ -593,22 +652,21 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
               type="file" 
               ref={reportTranscriptInputRef} 
               onChange={handleUploadReportTranscript} 
-              accept=".txt,.md" 
+              accept=".txt,.md,.docx" 
               multiple 
               className="hidden" 
             />
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
-            {/* 左側：訪談對象列表 */}
             <div className="lg:col-span-1 space-y-6">
-              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center px-2">
+              <h3 className="text-[12px] font-black text-slate-400 uppercase tracking-widest flex items-center px-2">
                 <UserCheck className="w-4 h-4 mr-2 text-tiffany"/> 已匯入之證詞 ({activeCase.transcripts?.length || 0})
               </h3>
               <div className="space-y-4">
                 {(!activeCase.transcripts || activeCase.transcripts.length === 0) ? (
                   <div className="p-10 border-2 border-dashed border-tiffany/10 rounded-3xl text-center">
-                    <p className="text-[10px] text-tiffany/30 font-bold uppercase tracking-widest">尚無訪談資料</p>
+                    <p className="text-[12px] text-tiffany/30 font-bold uppercase tracking-widest">尚無訪談資料</p>
                   </div>
                 ) : (
                   activeCase.transcripts.map(t => (
@@ -629,16 +687,15 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
               <button 
                 onClick={handleGenerateReport}
                 disabled={loadingState === 'report-generating' || !activeCase.transcripts?.length}
-                className="w-full py-5 btn-outer-senshi rounded-full font-bold text-sm tracking-[0.2em] uppercase disabled:opacity-30 flex items-center justify-center mt-8"
+                className="w-full py-5 btn-outer-senshi rounded-full font-bold text-sm tracking-[0.2em] uppercase disabled:opacity-30 flex items-center justify-center mt-8 shadow-lg active:scale-95 transition-all"
               >
                 {loadingState === 'report-generating' ? <Loader className="w-5 h-5 mr-3 animate-spin"/> : <Sparkles className="w-5 h-5 mr-3" />}
                 {loadingState === 'report-generating' ? '審理生成中...' : '✦ 一鍵草擬調查報告'}
               </button>
             </div>
 
-            {/* 右側：報告內容區 */}
             <div className="lg:col-span-2 space-y-6">
-              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center px-2">
+              <h3 className="text-[12px] font-black text-slate-400 uppercase tracking-widest flex items-center px-2">
                 <ClipboardList className="w-4 h-4 mr-2 text-tiffany"/> 調查報告草案實錄
               </h3>
               <div className="outer-tiffany-card overflow-hidden">
@@ -660,7 +717,7 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
                       a.download = `${activeCase.name}_調查報告草案.txt`;
                       a.click();
                     }}
-                    className="text-[10px] font-bold text-tiffany-deep flex items-center hover:underline"
+                    className="text-[12px] font-bold text-tiffany-deep flex items-center hover:underline"
                   >
                     <FileText className="w-4 h-4 mr-2"/> 匯出為文字檔
                   </button>
@@ -671,7 +728,6 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
         </div>
       )}
 
-      {/* 隱藏的上傳 Inputs */}
       <input 
         type="file" 
         ref={fileInputRef} 
@@ -683,7 +739,7 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
         type="file" 
         ref={transcriptInputRef} 
         onChange={(e) => targetMeetingId && handleUploadTranscript(e, targetMeetingId)} 
-        accept=".txt,.md" 
+        accept=".txt,.md,.docx" 
         className="hidden" 
       />
     </div>

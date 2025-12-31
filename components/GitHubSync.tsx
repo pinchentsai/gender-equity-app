@@ -127,7 +127,7 @@ const GitHubSync: React.FC<GitHubSyncProps> = ({ cases, globalFiles, onRestore }
           onClick={handleBackup}
           disabled={status === 'loading'}
           title="備份同步"
-          className="flex items-center gap-2 px-4 py-2 rounded-full bg-white text-tiffany-deep text-[10px] font-bold uppercase tracking-widest hover:bg-tiffany/10 transition-all disabled:opacity-50"
+          className="flex items-center gap-2 px-4 py-2 rounded-full bg-white text-tiffany-deep text-[12px] font-bold uppercase tracking-widest hover:bg-tiffany/10 transition-all disabled:opacity-50"
         >
           {status === 'loading' ? <Loader2 className="w-3 h-3 animate-spin" /> : <UploadCloud className="w-3 h-3" />}
           <span className="hidden sm:inline">備份同步</span>
@@ -136,9 +136,9 @@ const GitHubSync: React.FC<GitHubSyncProps> = ({ cases, globalFiles, onRestore }
           onClick={handleRestore}
           disabled={status === 'loading'}
           title="時空還原"
-          className="flex items-center gap-2 px-4 py-2 rounded-full bg-white text-tiffany-deep text-[10px] font-bold uppercase tracking-widest hover:bg-tiffany/10 transition-all disabled:opacity-50"
+          className="flex items-center gap-2 px-4 py-2 rounded-full bg-white text-tiffany-deep text-[12px] font-bold uppercase tracking-widest hover:bg-tiffany/10 transition-all disabled:opacity-50"
         >
-          {status === 'loading' ? <Loader2 className="w-3 h-3 animate-spin" /> : <DownloadCloud className="w-3 h-3" />}
+          {status === 'loading' ? <Loader2 className="w-4 h-4 animate-spin" /> : <DownloadCloud className="w-4 h-4" />}
           <span className="hidden sm:inline">時空還原</span>
         </button>
         <button 
@@ -152,7 +152,7 @@ const GitHubSync: React.FC<GitHubSyncProps> = ({ cases, globalFiles, onRestore }
 
       {/* 狀態氣泡提示 */}
       {status !== 'idle' && (
-        <div className={`absolute top-full mt-2 right-0 z-50 px-4 py-2 rounded-xl text-[10px] font-bold whitespace-nowrap border shadow-lg animate-fadeIn flex items-center gap-2 ${
+        <div className={`absolute top-full mt-2 right-0 z-50 px-4 py-2 rounded-xl text-[12px] font-bold whitespace-nowrap border shadow-lg animate-fadeIn flex items-center gap-2 ${
           status === 'loading' ? 'bg-blue-50 border-blue-100 text-blue-600' :
           status === 'success' ? 'bg-green-50 border-green-100 text-green-600' :
           'bg-red-50 border-red-100 text-red-600'
@@ -179,7 +179,7 @@ const GitHubSync: React.FC<GitHubSyncProps> = ({ cases, globalFiles, onRestore }
             <div className="space-y-5">
               <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100 flex gap-3">
                 <Info className="w-5 h-5 text-amber-500 shrink-0" />
-                <p className="text-[10px] text-amber-700 leading-relaxed font-bold">
+                <p className="text-[12px] text-amber-700 leading-relaxed font-bold">
                   性平資料極為敏感。強烈建議將此資料備份於 Private 私有倉庫。
                 </p>
               </div>

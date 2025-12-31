@@ -2,7 +2,7 @@
 import React from 'react';
 import { Plus, Trash2, Shield, Compass, Heart, Sparkles, ChevronRight, AlertTriangle, Moon } from 'lucide-react';
 import { CaseData, KnowledgeFile } from '../types';
-import { calculateDeadlines, isOverdue } from '../utils/dateUtils';
+import { calculateDeadlines, isOverdue, DEADLINE_TASK_MAP } from '../utils/dateUtils';
 import GeminiAssistant from './GeminiAssistant';
 import GitHubSync from './GitHubSync';
 
@@ -39,19 +39,18 @@ const CaseList: React.FC<CaseListProps> = ({
         </div>
         
         <div className="flex flex-wrap items-center gap-4 w-full lg:w-auto justify-center lg:justify-end">
-          {/* GitHub 同步中心移至右上角 */}
           <GitHubSync cases={cases} globalFiles={globalFiles} onRestore={onRestore} />
           
           <button 
             onClick={onCreate}
-            className="group btn-outer-senshi px-8 py-3.5 rounded-full font-bold tracking-[0.2em] uppercase text-[10px] flex items-center shadow-lg"
+            className="group btn-outer-senshi px-8 py-3.5 rounded-full font-bold tracking-[0.2em] uppercase text-[12px] flex items-center shadow-lg"
           >
             <Plus className="w-4 h-4 mr-2" /> 建立守護任務
           </button>
         </div>
       </div>
 
-      {/* 正在運行的守護星軌 - 移至第一個區塊 */}
+      {/* 正在運行的守護星軌 */}
       <div className="space-y-8 animate-fadeIn">
         <div className="flex items-center gap-6 px-4">
           <h3 className="text-[14px] font-black text-tiffany-deep/40 uppercase tracking-[0.4em] whitespace-nowrap">正在運行的守護星軌</h3>
@@ -61,13 +60,19 @@ const CaseList: React.FC<CaseListProps> = ({
         {cases.length === 0 ? (
           <div className="text-center py-24 outer-tiffany-card border-dashed border-tiffany/30">
             <Moon className="w-16 h-16 text-tiffany/20 mx-auto mb-6" />
-            <p className="text-tiffany/40 font-bold uppercase tracking-widest text-xs">星系目前平安，無待處置軌跡</p>
+            <p className="text-tiffany/40 font-bold uppercase tracking-widest text-[12px]">星系目前平安，無待處置軌跡</p>
           </div>
         ) : (
           <div className="grid gap-10 md:grid-cols-2">
             {cases.map(c => {
               const caseDl = calculateDeadlines(c);
-              const isAnyOverdue = Object.values(caseDl).some((d: any) => isOverdue(d));
+              
+              // 判定是否有任何「未完成且已過期」的時效
+              const isAnyOverdue = Object.entries(caseDl).some(([key, date]) => {
+                const taskId = DEADLINE_TASK_MAP[key];
+                const isCompleted = c.checklist?.[taskId] || false;
+                return isOverdue(date as Date, isCompleted);
+              });
               
               return (
                 <div 
@@ -91,7 +96,7 @@ const CaseList: React.FC<CaseListProps> = ({
                   </div>
 
                   <div className="flex flex-wrap gap-3 mb-10">
-                    <span className={`text-[10px] px-4 py-1.5 rounded-full font-bold uppercase tracking-widest bg-white shadow-sm border ${
+                    <span className={`text-[12px] px-4 py-1.5 rounded-full font-bold uppercase tracking-widest bg-white shadow-sm border ${
                       c.incidentType === 'sexual_harassment' ? 'text-orange-400 border-orange-100' :
                       c.incidentType === 'sexual_assault' ? 'text-red-400 border-red-100' : 'text-tiffany-deep border-tiffany/20'
                     }`}>
@@ -99,7 +104,7 @@ const CaseList: React.FC<CaseListProps> = ({
                        c.incidentType === 'sexual_assault' ? '疑似性侵害' : '疑似性霸凌'}
                     </span>
                     {isAnyOverdue && (
-                      <span className="flex items-center text-[10px] bg-red-400 text-white px-4 py-1.5 rounded-full font-bold uppercase tracking-widest animate-pulse">
+                      <span className="flex items-center text-[12px] bg-red-400 text-white px-4 py-1.5 rounded-full font-bold uppercase tracking-widest animate-pulse">
                         <AlertTriangle className="w-4 h-4 mr-2" /> 時空逾時
                       </span>
                     )}
@@ -123,7 +128,6 @@ const CaseList: React.FC<CaseListProps> = ({
         )}
       </div>
 
-      {/* AI 助手移至下方 */}
       <GeminiAssistant 
         globalFiles={globalFiles}
         onUpdateGlobalFiles={onUpdateGlobalFiles}

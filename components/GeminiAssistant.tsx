@@ -99,7 +99,7 @@ const GeminiAssistant: React.FC<GeminiAssistantProps> = ({
             {!isDetailMode && (
               <button 
                 onClick={() => setIsModalOpen(true)}
-                className="flex items-center gap-2 px-6 py-2.5 rounded-full border border-tiffany/30 text-tiffany-deep font-bold text-xs uppercase tracking-widest hover:bg-tiffany/10 transition-all"
+                className="flex items-center gap-2 px-6 py-2.5 rounded-full border border-tiffany/30 text-tiffany-deep font-bold text-[12px] uppercase tracking-widest hover:bg-tiffany/10 transition-all"
               >
                 <BookOpen className="w-4 h-4" />
                 查看守護法規 ({globalFiles.length})
@@ -108,7 +108,7 @@ const GeminiAssistant: React.FC<GeminiAssistantProps> = ({
             <button 
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
-              className="btn-outer-senshi px-6 py-2.5 rounded-full font-bold text-xs uppercase tracking-widest flex items-center"
+              className="btn-outer-senshi px-6 py-2.5 rounded-full font-bold text-[12px] uppercase tracking-widest flex items-center"
             >
               {uploading ? <Loader className="w-4 h-4 animate-spin"/> : <Upload className="w-4 h-4 mr-2" />}
               更新守護卷軸
@@ -141,7 +141,7 @@ const GeminiAssistant: React.FC<GeminiAssistantProps> = ({
               {loading ? '星軌掃描中...' : '以外部戰士之名・啟動合規鑑定'}
             </button>
             {!globalFiles.length && (
-              <p className="text-[10px] text-red-400 font-bold text-center animate-pulse">
+              <p className="text-[12px] text-red-400 font-bold text-center animate-pulse">
                 <AlertTriangle className="w-3 h-3 inline mr-1" /> 請先更新法規卷軸以啟動鑑定
               </p>
             )}
@@ -154,7 +154,7 @@ const GeminiAssistant: React.FC<GeminiAssistantProps> = ({
                 <h3 className="font-bold text-tiffany-deep text-lg tracking-widest flex items-center cinzel">
                   <span className="text-tiffany-deep mr-4">✥</span> 守護者判定報告書
                 </h3>
-                <button onClick={() => navigator.clipboard.writeText(result)} className="text-[10px] font-bold text-slate-400 hover:text-tiffany-deep flex items-center transition-colors uppercase tracking-widest">
+                <button onClick={() => navigator.clipboard.writeText(result)} className="text-[12px] font-bold text-slate-400 hover:text-tiffany-deep flex items-center transition-colors uppercase tracking-widest">
                   <Copy className="w-4 h-4 mr-2"/> 複製鑑定紀錄
                 </button>
               </div>
@@ -165,7 +165,7 @@ const GeminiAssistant: React.FC<GeminiAssistantProps> = ({
           )}
 
           {error && (
-            <div className="p-5 bg-red-50 border border-red-100 text-red-400 rounded-2xl text-xs flex items-center">
+            <div className="p-5 bg-red-50 border border-red-100 text-red-400 rounded-2xl text-[12px] flex items-center">
               <AlertTriangle className="w-4 h-4 mr-3" />
               {error}
             </div>
@@ -195,7 +195,7 @@ const GeminiAssistant: React.FC<GeminiAssistantProps> = ({
               {globalFiles.length === 0 ? (
                 <div className="text-center py-20 bg-tiffany/5 rounded-[2rem] border-2 border-dashed border-tiffany/20">
                   <Globe className="w-12 h-12 text-tiffany/20 mx-auto mb-4" />
-                  <p className="text-xs font-bold text-tiffany/40 uppercase tracking-[0.2em]">時空庫尚無數據，請先上傳守護卷軸</p>
+                  <p className="text-[12px] font-bold text-tiffany/40 uppercase tracking-[0.2em]">時空庫尚無數據，請先上傳守護卷軸</p>
                 </div>
               ) : (
                 globalFiles.map((file, idx) => (
@@ -227,7 +227,7 @@ const GeminiAssistant: React.FC<GeminiAssistantProps> = ({
             <div className="mt-8 pt-6 border-t border-tiffany/10 flex justify-end">
               <button 
                 onClick={() => setIsModalOpen(false)}
-                className="px-8 py-3 bg-tiffany text-white rounded-full font-bold text-xs uppercase tracking-widest shadow-lg shadow-tiffany/20"
+                className="px-8 py-3 bg-tiffany text-white rounded-full font-bold text-[12px] uppercase tracking-widest shadow-lg shadow-tiffany/20"
               >
                 關閉法規庫
               </button>

@@ -70,7 +70,7 @@ const HelpTutorial: React.FC<HelpTutorialProps> = ({ isOpen, onClose }) => {
 
         <button 
           onClick={onClose}
-          className="w-full mt-10 py-4 btn-outer-senshi rounded-full font-bold text-xs uppercase tracking-widest"
+          className="w-full mt-10 py-4 btn-outer-senshi rounded-full font-bold text-[12px] uppercase tracking-widest"
         >
           我已掌握時空法則，開始守護
         </button>

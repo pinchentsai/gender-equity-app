@@ -158,7 +158,7 @@ const App: React.FC = () => {
             <span className="text-xl text-tiffany-deep cinzel">♇</span>
             <span className="text-xl text-tiffany-deep cinzel">♄</span>
           </div>
-          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.4em]">
+          <p className="text-[12px] text-slate-400 font-bold uppercase tracking-[0.4em]">
             守護太陽系邊緣的真相 ・ 113 年修正法案
           </p>
           <p className="text-[9px] text-tiffany-deep/50 mt-3 italic">Eternal Sentinel Compliance Engine v4.2</p>
