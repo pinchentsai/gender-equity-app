@@ -3,7 +3,7 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [ "main" ] # 或者是您的主要分支名稱
+    branches: [ "main" ]
 
 permissions:
   contents: read
@@ -21,7 +21,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
+          # 移除 cache: 'npm'，因為目前專案中尚未提交 package-lock.json
+          # 這樣 GitHub Actions 會直接執行安裝而不檢查 lock file
           
       - name: Install dependencies
         run: npm install
@@ -29,7 +30,7 @@ jobs:
       - name: Build
         run: npm run build
         env:
-          API_KEY: ${{ secrets.API_KEY }} # 這裡會讀取 GitHub 的 Secrets
+          API_KEY: ${{ secrets.API_KEY }}
         
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
