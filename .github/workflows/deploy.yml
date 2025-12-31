@@ -21,11 +21,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          # 移除 cache: 'npm'，因為目前專案中尚未提交 package-lock.json
-          # 這樣 GitHub Actions 會直接執行安裝而不檢查 lock file
+          # 確保不使用快取，避免觸發 package-lock.json 檢查
           
       - name: Install dependencies
-        run: npm install
+        # 使用 --no-package-lock 避免安裝過程中因缺少鎖定檔而出現警告或錯誤
+        run: npm install --no-package-lock
         
       - name: Build
         run: npm run build
