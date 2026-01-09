@@ -65,7 +65,8 @@ const GeminiAssistant: React.FC<GeminiAssistantProps> = ({
         description,
         globalFiles
       );
-      setResult(analysis);
+      // 修復 TS2345: 使用 ?? '' 確保傳入的是字串而非 undefined
+      setResult(analysis ?? '');
     } catch (err) {
       setError('時空能量波干擾中，請檢查守護卷軸。');
     } finally {
