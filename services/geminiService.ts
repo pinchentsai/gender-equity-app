@@ -1,6 +1,7 @@
 
 import { GoogleGenAI } from "@google/genai";
-import { KnowledgeFile, CaseData, InterviewTranscript } from "../types";
+import { KnowledgeFile, CaseData } from "../types";
+import { REGULATORY_CONTEXT } from "../constants";
 
 export const callGeminiAnalysis = async (
   caseName: string, 
@@ -17,50 +18,26 @@ export const callGeminiAnalysis = async (
     }
   }));
 
-  const systemInstruction = `你是一位資長的校園性別事件合規審查專家。
-【任務核心】
-1. 請嚴格參考《性別平等教育法》及《校園性別事件防治準則》。
-2. 針對使用者上傳的 PDF 知識庫（校內防治準則），進行精準的規範對齊。
-3. 你的分析報告必須專業、客觀，並提供法律實務上的具體建議。`;
+  const prompt = `案件名稱：${caseName}\n事件樣態：${type}\n描述：${description}\n\n請根據法規進行鑑定與建議。`;
 
-  const promptText = `
-【待審案件資訊】
-案件名稱：${caseName}
-初步判定樣態：${type}
-具體情境描述：${description}
+  const response = await ai.models.generateContent({
+    model: 'gemini-3-pro-preview',
+    contents: { parts: [...fileParts, { text: prompt }] },
+    config: {
+      systemInstruction: REGULATORY_CONTEXT,
+    },
+  });
 
-請結合附件中的法規知識庫內容，為我生成一份專業的合規性鑑定與處置建議。
-  `;
-
-  try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: {
-        parts: [
-          ...fileParts,
-          { text: promptText }
-        ]
-      },
-      config: {
-        systemInstruction: systemInstruction,
-        temperature: 0.1,
-      },
-    });
-
-    return response.text || "無法生成分析結果，可能因內容涉及敏感詞彙被 AI 安全機制攔截。";
-  } catch (error) {
-    console.error("Gemini API Error:", error);
-    throw error;
-  }
+  return response.text;
 };
 
 export const callGeminiMeetingAssistant = async (
-  mode: 'agenda' | 'minutes',
-  context: {
+  type: 'agenda' | 'minutes',
+  data: {
     caseName: string;
     description: string;
     phaseTitle: string;
-    meetingTitle?: string;
+    meetingTitle: string;
     agenda?: string;
     recordingData?: string;
     recordingMimeType?: string;
@@ -69,111 +46,48 @@ export const callGeminiMeetingAssistant = async (
 ) => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
-  const systemInstruction = `你是一位專業的性平會秘書長。請依據提供的資訊撰寫正式的會議文書。請使用繁體中文，保持正式的法律公文口吻。`;
-
   let prompt = "";
-  const parts: any[] = [];
-
-  if (mode === 'agenda') {
-    prompt = `
-【案件背景】
-名稱：${context.caseName}
-描述：${context.description}
-目前進度：${context.phaseTitle}
-
-【本次會議主題】
-${context.meetingTitle || "未指定特定主題"}
-
-請擬定一份專業且具體可行的會議議程。
-    `;
+  if (type === 'agenda') {
+    prompt = `請為以下案件草擬會議議程：\n案件：${data.caseName}\n背景：${data.description}\n目前階段：${data.phaseTitle}\n會議主題：${data.meetingTitle}`;
   } else {
-    prompt = `
-【會議紀錄生成】
-主題：${context.meetingTitle}
-原定議程：${context.agenda}
-${context.transcript ? `【提供之逐字稿內容】：\n${context.transcript}\n` : ""}
-錄音內容（若有）已附上。請生成正式的會議紀錄，含摘要與決議事項。
-    `;
-    if (context.recordingData && context.recordingMimeType) {
-      parts.push({
-        inlineData: {
-          data: context.recordingData,
-          mimeType: context.recordingMimeType
-        }
-      });
-    }
+    prompt = `請根據以下資訊生成會議紀錄：\n案件：${data.caseName}\n會議主題：${data.meetingTitle}\n原定議程：${data.agenda || "未提供"}\n\n來源逐字稿/錄音內容：\n${data.transcript || "請分析附件音檔"}`;
   }
 
-  parts.push({ text: prompt });
-
-  try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: { parts },
-      config: { systemInstruction, temperature: 0.2 },
+  const parts: any[] = [{ text: prompt }];
+  if (data.recordingData && data.recordingMimeType) {
+    parts.push({
+      inlineData: {
+        data: data.recordingData,
+        mimeType: data.recordingMimeType
+      }
     });
-    return response.text || "無法自動生成內容。";
-  } catch (error) {
-    console.error("Meeting Assistant Error:", error);
-    throw error;
   }
+
+  const response = await ai.models.generateContent({
+    model: 'gemini-3-pro-preview',
+    contents: { parts },
+    config: {
+      systemInstruction: "你是一位專業的行政秘書，擅長撰寫結構嚴密且符合法律規範的會議議程與紀錄。請確保內容專業且符合性平會程序。",
+    },
+  });
+
+  return response.text;
 };
 
-export const callGeminiReportGenerator = async (
-  caseData: CaseData
-) => {
+export const callGeminiReportGenerator = async (caseData: CaseData) => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
-  // 特別聲明專業場景以減少安全機制誤判
-  const systemInstruction = `【專業角色聲明】
-你現在是一位具備法律背景的「校園性別事件專業調查員」。
-你正在處理的是一份嚴肅的行政調查文書，請以中立、客觀、且完全符合《性別平等教育法》格式的語氣撰寫報告。
-這是一個專業的教育與法律輔助場景，請協助分析事實而不進行道德評判。`;
+  const transcriptsText = caseData.transcripts?.map(t => `【證詞：${t.name}】\n${t.content}`).join("\n\n") || "尚無逐字稿。";
 
-  const transcriptsContent = caseData.transcripts
-    .map(t => `【訪談對象：${t.name}】\n${t.content}`)
-    .join('\n\n---\n\n');
+  const prompt = `請根據以下訪談逐字稿與案件資訊，生成一份正式的「校園性別事件調查報告」草案：\n\n案件：${caseData.name}\n樣態：${caseData.incidentType}\n初步描述：${caseData.description}\n\n訪談內容匯整：\n${transcriptsText}\n\n報告應包含：1. 案件概述 2. 調查過程 3. 事實認定 4. 理由與建議處置。`;
 
-  const prompt = `
-請根據以下提供的案件資訊與多份訪談逐字稿，撰寫一份結構完整的「調查報告草案」。
+  const response = await ai.models.generateContent({
+    model: 'gemini-3-pro-preview',
+    contents: prompt,
+    config: {
+      systemInstruction: REGULATORY_CONTEXT + "\n請以正式、嚴謹的法律公文體裁撰寫報告。",
+    },
+  });
 
-【案件基本資訊】
-案件名稱：${caseData.name}
-事件類型：${caseData.incidentType}
-事件初步描述：${caseData.description}
-
-【訪談逐字稿實錄】
-${transcriptsContent}
-
-報告架構應包含：
-1. 申請人與行為人之陳述要旨（請比對雙方說詞）。
-2. 調查小組認定之事實及理由（交互檢驗證詞之可信度）。
-3. 具體處理建議（行政處分、心理輔導或教育處置）。
-
-請使用繁體中文撰寫。
-  `;
-
-  try {
-    // 移除 knowledgeFiles 附件，因為 Base64 數據量過大會導致請求失敗
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: {
-        parts: [{ text: prompt }]
-      },
-      config: { 
-        systemInstruction, 
-        temperature: 0.1 
-      },
-    });
-
-    const resultText = response.text;
-    if (!resultText) {
-      // 檢查是否被安全機制攔截
-      return "【AI 系統提示】報告生成被攔截。這通常是因為訪談內容中包含過於露骨的詞彙，請嘗試手動摘要部分敏感字眼後再重新生成，或檢查 API Key 是否有正確配置。";
-    }
-    return resultText;
-  } catch (error) {
-    console.error("Report Generation Error:", error);
-    throw error;
-  }
+  return response.text;
 };

@@ -1,12 +1,12 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { CaseData, CaseDates, KnowledgeFile } from '../types';
+import { CaseData, CaseDates, KnowledgeFile, Task } from '../types';
 import { calculateDeadlines } from '../utils/dateUtils';
 import { PHASES_DATA } from '../constants';
 import { getDBItem, setDBItem } from '../utils/db';
 
-const STORAGE_KEY = 'genderEquityCases_v4_2';
-const KNOWLEDGE_KEY = 'genderEquityGlobalKnowledge_v4_2';
+const STORAGE_KEY = 'genderEquityCases_v4_5'; 
+const KNOWLEDGE_KEY = 'genderEquityGlobalKnowledge_v4_5';
 
 export const useCaseManagement = () => {
   const [cases, setCases] = useState<CaseData[]>([]);
@@ -18,18 +18,33 @@ export const useCaseManagement = () => {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const savedCases = await getDBItem<CaseData[]>(STORAGE_KEY);
+        const savedCases = await getDBItem<any[]>(STORAGE_KEY);
         const savedKnowledge = await getDBItem<KnowledgeFile[]>(KNOWLEDGE_KEY);
         
         if (savedCases) {
-          // 確保舊資料也有 meetings, transcripts, investigationReport 欄位
-          const migration = savedCases.map(c => ({
-            ...c,
-            meetings: c.meetings || [],
-            transcripts: c.transcripts || [],
-            investigationReport: c.investigationReport || ""
-          }));
-          setCases(migration);
+          const migration = savedCases.map(c => {
+            let role = c.incidentRoleType || 'teacher_vs_student';
+            // 處理舊版資料轉移
+            if (role === 'principal_vs_student') role = 'teacher_vs_student';
+            if (role === 'student_vs_student') role = 'student_vs_student_middle_up';
+
+            return {
+              ...c,
+              incidentRoleType: role,
+              meetings: c.meetings || [],
+              transcripts: c.transcripts || [],
+              investigationReport: c.investigationReport || "",
+              extensionMonths: c.extensionMonths ?? 0,
+              decisionStatus: c.decisionStatus || 'pending',
+              filedAppeal: c.filedAppeal ?? false,
+              investigationResult: c.investigationResult || 'pending',
+              phase6AppealStatus: c.phase6AppealStatus || 'pending',
+              phase6AppealResult: c.phase6AppealResult || 'pending',
+              phase6AppealFollowUp: c.phase6AppealFollowUp || 'pending',
+              phase6RemedyStatus: c.phase6RemedyStatus || 'pending'
+            };
+          });
+          setCases(migration as CaseData[]);
         }
         if (savedKnowledge) setGlobalFiles(savedKnowledge);
       } catch (err) {
@@ -41,7 +56,6 @@ export const useCaseManagement = () => {
     loadData();
   }, []);
 
-  // 同步：當狀態變更且已載入完成時，寫入 IndexedDB
   useEffect(() => {
     if (isLoaded) {
       setDBItem(STORAGE_KEY, cases);
@@ -70,13 +84,36 @@ export const useCaseManagement = () => {
     let lastCompletedPhaseIndex = 0;
 
     PHASES_DATA.forEach((phase, index) => {
-      phase.tasks.forEach(task => {
+      // 判定星軌可見度
+      const isPhaseVisible = phase.id === 6.5 
+        ? activeCase.phase6AppealFollowUp === 'reinvestigation' 
+        : true;
+
+      if (!isPhaseVisible) return;
+
+      // 取得該階段的任務集
+      let tasks = phase.tasks;
+      if (phase.id === 2 && activeCase.decisionStatus === 'not_accepted' && activeCase.filedAppeal) {
+        tasks = [
+          ...phase.tasks, 
+          { id: "2.5-1", text: "召開性平會重新議決 (申復處理)", note: "性平法§32-3", unit: "性平會" },
+          { id: "2.5-2", text: "書面通知申復結果", note: "性平法§32-3", unit: "性平會" },
+          { id: "2.5-3", text: "啟動調查(若申復有理由)", note: "性平法§32-3", unit: "性平會" }
+        ];
+      }
+
+      tasks.forEach(task => {
+        // 判斷是否為生對生案件（不論國小或國中以上）
+        const isStudentCase = activeCase.incidentRoleType === 'student_vs_student_middle_up' || activeCase.incidentRoleType === 'student_vs_student_elementary';
+        const isLockedByStudentVsStudent = isStudentCase && ['4.4', '5.1', '5.2'].includes(task.id);
+        if (isLockedByStudentVsStudent) return;
+
         totalTasks++;
         if (activeCase.checklist[task.id]) {
           completedTasks++;
         }
       });
-      if (phase.tasks.some(task => activeCase.checklist[task.id])) {
+      if (tasks.some(task => activeCase.checklist[task.id])) {
         lastCompletedPhaseIndex = index + 1;
       }
     });
@@ -92,17 +129,33 @@ export const useCaseManagement = () => {
       id: Date.now().toString(),
       name: `新案件 ${new Date().toLocaleDateString()}`,
       incidentType: 'sexual_harassment',
+      incidentRoleType: 'teacher_vs_student',
       hasApplication: true,
       description: '',
       dates: {
-        known: '', application: '', acceptance: '',
-        nonAcceptanceNotice: '', reportHandover: '',
-        resultNotice: '', appealReceive: '', appealDecisionNotice: ''
+        known: '', 
+        application: '', 
+        acceptance: '',
+        nonAcceptanceNotice: '', 
+        nonAcceptanceAppealReceive: '',
+        reportHandover: '',
+        resultNotice: '', 
+        appealReceive: '', 
+        appealDecisionNotice: '',
+        reinvestigationStart: ''
       },
       checklist: {},
       meetings: [],
       transcripts: [],
-      investigationReport: ""
+      investigationReport: "",
+      extensionMonths: 0,
+      decisionStatus: 'pending',
+      filedAppeal: false,
+      investigationResult: 'pending',
+      phase6AppealStatus: 'pending',
+      phase6AppealResult: 'pending',
+      phase6AppealFollowUp: 'pending',
+      phase6RemedyStatus: 'pending'
     };
     setCases(prev => [newCase, ...prev]);
     setActiveCaseId(newCase.id);
