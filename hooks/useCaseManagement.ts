@@ -31,7 +31,6 @@ export const useCaseManagement = () => {
             return {
               ...c,
               incidentRoleType: role,
-              meetings: c.meetings || [],
               transcripts: c.transcripts || [],
               investigationReport: c.investigationReport || "",
               extensionMonths: c.extensionMonths ?? 0,
@@ -145,7 +144,6 @@ export const useCaseManagement = () => {
         reinvestigationStart: ''
       },
       checklist: {},
-      meetings: [],
       transcripts: [],
       investigationReport: "",
       extensionMonths: 0,

@@ -5,14 +5,10 @@ import { REGULATORY_CONTEXT } from "../constants";
 
 /**
  * 內部診斷函數：確保 API Key 已正確注入
+ * Fix: Always use process.env.API_KEY directly in the named parameter.
  */
 const getAiClient = () => {
-  const apiKey = process.env.API_KEY;
-  if (!apiKey || apiKey === "undefined") {
-    console.error("【時空警告】API_KEY 未定義。");
-    throw new Error("Missing API Key");
-  }
-  return new GoogleGenAI({ apiKey });
+  return new GoogleGenAI({ apiKey: process.env.API_KEY });
 };
 
 export const callGeminiAnalysis = async (
@@ -32,6 +28,7 @@ export const callGeminiAnalysis = async (
 
     const prompt = `案件名稱：${caseName}\n事件樣態：${type}\n描述：${description}\n\n請根據法規進行鑑定與建議。`;
 
+    // Basic analysis task uses gemini-3-flash-preview.
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: { parts: [...fileParts, { text: prompt }] },
@@ -43,90 +40,6 @@ export const callGeminiAnalysis = async (
     return response.text;
   } catch (error) {
     console.error("【合規鑑定失敗】", error);
-    throw error;
-  }
-};
-
-export const callGeminiMeetingAssistant = async (
-  type: 'agenda' | 'minutes',
-  data: {
-    caseName: string;
-    description: string;
-    phaseTitle: string;
-    meetingTitle: string;
-    agenda?: string;
-    recordingData?: string;
-    recordingMimeType?: string;
-    transcript?: string;
-  }
-) => {
-  try {
-    const ai = getAiClient();
-    let prompt = "";
-    
-    if (type === 'agenda') {
-      prompt = `
-請為以下「台灣校園性別事件」草擬一份結構嚴謹、符合實務需求且細緻的正式會議議程：
-
-【案件基本資訊】
-案件名稱：${data.caseName}
-事件背景：${data.description || "未提供詳細背景"}
-目前程序階段：${data.phaseTitle}
-本次會議標題：${data.meetingTitle}
-
-【議程撰寫要求】
-1. 結構必須包含：
-   一、 開會 (主席宣告開會及出席人數)。
-   二、 主席致詞。
-   三、 報告事項：
-        - 案情通報及受理進度報告。
-        - 說明校方已提供之保護措施（引用性平法第26條）。
-   四、 討論事項：
-        - 核心議題：針對「${data.description}」之事實查證方式進行研議。
-        - 證據審核：討論目前掌握之監視錄影或證言之效力。
-        - 程序審核：確認調查小組成員符合「性平法§33-2」之性別與專業比例。
-   五、 臨時動議。
-   六、 散會。
-2. 用語應專業且具行政尊嚴。
-`;
-    } else {
-      prompt = `
-請根據以下來源生成「台灣校園性平會」正式會議紀錄：
-
-【會議背景】
-案件名稱：${data.caseName}
-會議主題：${data.meetingTitle}
-
-【來源資料】
-${data.transcript || "請深度分析錄音數據"}
-
-【紀錄要求】
-1. 詳實記錄委員針對「事實有無」的發言要點。
-2. 決議部分必須具備明確的法律效力用語。
-`;
-    }
-
-    const parts: any[] = [{ text: prompt }];
-    if (data.recordingData && data.recordingMimeType) {
-      parts.push({
-        inlineData: {
-          data: data.recordingData,
-          mimeType: data.recordingMimeType
-        }
-      });
-    }
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: { parts },
-      config: {
-        systemInstruction: "你是一位精通台灣性平法與校園議事錄撰寫的資深專業秘書，語氣務必嚴謹、精準且具備公務邏輯。",
-      },
-    });
-
-    return response.text;
-  } catch (error) {
-    console.error("【議事錄生成失敗】", error);
     throw error;
   }
 };
@@ -179,11 +92,12 @@ ${transcriptsText}
 - 採用台灣標準校園性平調查報告之書面體裁。
 `;
 
+    // Complex legal reasoning task: use gemini-3-pro-preview for higher quality reasoning.
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3-pro-preview',
       contents: prompt,
       config: {
-        systemInstruction: "你是一位資深的校園性平調查專家與法務顧問，擅長撰寫具備高度法律涵攝深度與事實論述能力的調查報告。你的目標是產出一份能經得起申復審議挑戰的專業報告草案。",
+        systemInstruction: "你是一位資深的校園性平調查專家與法務顧問，擅長撰寫具備高度法律涵攝深度與事實論述能力的調查報告. 你的目標是產出一份能經得起申復審議挑戰的專業報告草案。",
       },
     });
 

@@ -3,12 +3,12 @@ import React, { useState, useRef, useMemo } from 'react';
 import { 
   ArrowRight, Info, Clock, Activity, ChevronDown, ChevronUp, Shield, Calendar, Tag, FileText, Plus, Mic, Trash2, CheckCircle, Loader, BookOpen, FileCheck, ClipboardList, UserCheck, Sparkles, Timer, AlertCircle, HelpCircle, Hammer, Scale, Undo2, SearchCheck, CheckCircle2, Gavel, RotateCcw, UserPlus, Zap, Lock
 } from 'lucide-react';
-import { CaseData, CaseDates, KnowledgeFile, Meeting, InterviewTranscript, Task } from '../types';
+import { CaseData, CaseDates, KnowledgeFile, InterviewTranscript, Task } from '../types';
 import { PHASES_DATA, getIcon } from '../constants';
 import { formatDate, getDeadlineStatus, isValidSequence, DEADLINE_TASK_MAP } from '../utils/dateUtils';
 import GeminiAssistant from './GeminiAssistant';
 import ProgressBar from './ProgressBar';
-import { callGeminiMeetingAssistant, callGeminiReportGenerator } from '../services/geminiService';
+import { callGeminiReportGenerator } from '../services/geminiService';
 
 interface CaseDetailProps {
   activeCase: CaseData;
@@ -33,17 +33,14 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
   onToggleCheck,
   onUpdateGlobalFiles
 }) => {
-  const [tab, setTab] = useState<'info' | 'meetings' | 'report'>('info');
+  const [tab, setTab] = useState<'info' | 'report'>('info');
   const [expandedPhases, setExpandedPhases] = useState<Record<number, boolean>>({
     1: true, 2: true,
     [progressStats.currentPhase]: true 
   });
   const [showAdvancedDates, setShowAdvancedDates] = useState(false);
   const [loadingState, setLoadingState] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const transcriptInputRef = useRef<HTMLInputElement>(null);
   const reportTranscriptInputRef = useRef<HTMLInputElement>(null);
-  const [targetMeetingId, setTargetMeetingId] = useState<string | null>(null);
 
   const togglePhase = (id: number) => {
     setExpandedPhases(prev => ({ ...prev, [id]: !prev[id] }));
@@ -123,110 +120,6 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
     }
   };
 
-  const handleCreateMeeting = () => {
-    const newMeeting: Meeting = {
-      id: Date.now().toString(),
-      date: new Date().toISOString().split('T')[0],
-      title: `第 ${(activeCase.meetings?.length || 0) + 1} 次星軌會議`,
-      phaseId: progressStats.currentPhase,
-      agenda: '',
-      minutes: ''
-    };
-    onUpdateActiveCase({ meetings: [newMeeting, ...(activeCase.meetings || [])] });
-  };
-
-  const handleDraftAgenda = async (meeting: Meeting) => {
-    setLoadingState(meeting.id + '-agenda');
-    try {
-      const phase = PHASES_DATA.find(p => p.id === meeting.phaseId);
-      const agenda = await callGeminiMeetingAssistant('agenda', {
-        caseName: activeCase.name,
-        description: activeCase.description,
-        phaseTitle: phase?.title || "未知階段",
-        meetingTitle: meeting.title
-      });
-      const updated = activeCase.meetings.map(m => m.id === meeting.id ? { ...m, agenda: agenda || "" } : m);
-      onUpdateActiveCase({ meetings: updated });
-    } catch (err: any) {
-      console.error("Agenda generation error:", err);
-      alert(`時空通訊中斷：${err.message?.includes("API Key") ? "API 金鑰設定有誤" : "連線逾時"}。請檢查控制台紀錄。`);
-    } finally {
-      setLoadingState(null);
-    }
-  };
-
-  const handleUploadRecording = async (e: React.ChangeEvent<HTMLInputElement>, meetingId: string) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = async () => {
-      const base64 = (reader.result as string).split(',')[1];
-      const updated = activeCase.meetings.map(m => 
-        m.id === meetingId ? { ...m, recordingData: base64, recordingMimeType: file.type } : m
-      );
-      onUpdateActiveCase({ meetings: updated });
-    };
-  };
-
-  const handleUploadTranscript = async (e: React.ChangeEvent<HTMLInputElement>, meetingId: string) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    let text = "";
-    if (file.name.endsWith('.docx')) {
-      try {
-        const arrayBuffer = await file.arrayBuffer();
-        const result = await (window as any).mammoth.extractRawText({ arrayBuffer });
-        text = result.value;
-      } catch (err) {
-        alert("Word 檔案解析失敗。");
-        return;
-      }
-    } else {
-      text = await new Promise<string>((resolve) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result as string);
-        reader.readAsText(file);
-      });
-    }
-    const updated = activeCase.meetings.map(m => 
-      m.id === meetingId ? { ...m, transcript: text } : m
-    );
-    onUpdateActiveCase({ meetings: updated });
-  };
-
-  const handleGenerateMinutes = async (meeting: Meeting) => {
-    if (!meeting.recordingData && !meeting.transcript) {
-      alert("請先提供錄音檔或逐字稿。");
-      return;
-    }
-    setLoadingState(meeting.id + '-minutes');
-    try {
-      const minutes = await callGeminiMeetingAssistant('minutes', {
-        caseName: activeCase.name,
-        description: activeCase.description,
-        phaseTitle: "",
-        meetingTitle: meeting.title,
-        agenda: meeting.agenda,
-        recordingData: meeting.recordingData,
-        recordingMimeType: meeting.recordingMimeType,
-        transcript: meeting.transcript
-      });
-      const updated = activeCase.meetings.map(m => m.id === meeting.id ? { ...m, minutes: minutes || "" } : m);
-      onUpdateActiveCase({ meetings: updated });
-    } catch (err: any) {
-      console.error("Minutes generation error:", err);
-      alert(`轉錄解析失敗：${err.message || "通訊異常"}。`);
-    } finally {
-      setLoadingState(null);
-    }
-  };
-
-  const handleDeleteMeeting = (id: string) => {
-    if (!window.confirm("確定要刪除此會議紀錄嗎？")) return;
-    onUpdateActiveCase({ meetings: activeCase.meetings.filter(m => m.id !== id) });
-  };
-
   const handleUploadReportTranscript = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -292,13 +185,13 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
         </button>
         <div className="flex bg-white/50 p-1 rounded-full border border-tiffany/20 shadow-sm overflow-x-auto no-scrollbar">
           <button onClick={() => setTab('info')} className={`px-6 py-2 rounded-full text-sm font-bold uppercase tracking-widest transition-all whitespace-nowrap ${tab === 'info' ? 'bg-tiffany text-white shadow-md' : 'text-slate-400 hover:text-tiffany-deep'}`}>星軌資訊</button>
-          <button onClick={() => setTab('meetings')} className={`px-6 py-2 rounded-full text-sm font-bold uppercase tracking-widest transition-all whitespace-nowrap ${tab === 'meetings' ? 'bg-tiffany text-white shadow-md' : 'text-slate-400 hover:text-tiffany-deep'}`}>會議紀錄 ({activeCase.meetings?.length || 0})</button>
           <button onClick={() => setTab('report')} className={`px-6 py-2 rounded-full text-sm font-bold uppercase tracking-widest transition-all whitespace-nowrap ${tab === 'report' ? 'bg-tiffany text-white shadow-md' : 'text-slate-400 hover:text-tiffany-deep'}`}>調查報告</button>
         </div>
       </div>
 
       {tab === 'info' ? (
         <>
+          {/* Fix: Access percentage through progressStats.percentage to resolve 'percentage' is not defined error */}
           <ProgressBar currentPhase={progressStats.currentPhase} percentage={progressStats.percentage} />
 
           <section className="outer-tiffany-card p-8 md:p-10 mb-10 border-white/50">
@@ -458,7 +351,7 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
                   { label: '2.4 不受理申復期限', key: 'nonAcceptanceAppeal', color: 'border-teal-400' },
                   { label: '2.5-2 申復處理期限', key: 'nonAcceptanceAppealReview', color: 'border-teal-400' },
                   { label: '3.7 調查結案期限', key: 'investigation', color: 'border-amber-400' },
-                  { label: '5.3 書面通知處理結果', key: 'decision', color: 'border-purple-400' }, // 修改：標籤改為 5.3，key 保持對應原邏輯
+                  { label: '5.3 書面通知處理結果', key: 'decision', color: 'border-purple-400' },
                   { label: '6.1 申復提出期限', key: 'resultAppeal', color: 'border-indigo-400' },
                   { label: '6.2 申復審議期限', key: 'appealReview', color: 'border-indigo-400' },
                   { label: '6.3 重新調查期限', key: 'reinvestigation', color: 'border-indigo-400' },
@@ -467,8 +360,7 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
                   const taskId = DEADLINE_TASK_MAP[item.key];
                   const isCompleted = activeCase.checklist?.[taskId] || false;
                   const status = getDeadlineStatus(deadlines[item.key], isCompleted);
-
-                  const isNA = false; // 修改：解除生對生樣態的鎖定，所有樣態通用
+                  const isNA = false;
 
                   return (
                     <div key={item.key} className={`p-5 rounded-2xl bg-white/5 border-l-4 transition-all ${
@@ -541,14 +433,10 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
                     <div className="p-8 space-y-6 animate-fadeIn bg-white/50">
                       {phase.tasks.map(task => {
                         const isTaskLockedByUnsubstantiated = isInvestigationUnsubstantiated && LOCKED_TASKS_IF_UNSUBSTANTIATED.includes(task.id);
-                        
-                        // 動態判斷生對生上鎖邏輯 (國小額外鎖 4.3)
                         const isTaskLockedByStudentVsStudent = isStudentVsStudent && LOCKED_TASKS_IF_STUDENT_VS_STUDENT.includes(task.id);
-                        
                         const isTaskLockedByNoAppeal = isPhase6LockedByNoAppeal && phase.id === 6 && task.id !== "6.1";
                         const isTaskLockedByDismissal = isPhase6Dismissed && task.id === "6.3";
                         const isTaskLockedByReinvestigation = isReinvestigationMode && task.id === "6.4";
-                        
                         const isTaskLockedByStatutoryReport = !isStatutoryReportDone && task.id === "2.3";
 
                         const isCurrentlyLocked = isTaskLockedByUnsubstantiated || isTaskLockedByNoAppeal || isTaskLockedByReinvestigation || isTaskLockedByStudentVsStudent || isTaskLockedByStatutoryReport || (isTaskLockedByDismissal && !activeCase.phase6AppealResult);
@@ -717,39 +605,6 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
             })}
           </div>
         </>
-      ) : tab === 'meetings' ? (
-        <div className="animate-fadeIn space-y-10">
-          <div className="flex justify-between items-center px-4">
-            <div><h2 className="text-2xl font-bold text-slate-700 cinzel">星際議事錄</h2><p className="text-[12px] text-tiffany-deep font-bold uppercase tracking-[0.3em] mt-1">Archives</p></div>
-            <button onClick={handleCreateMeeting} className="px-8 py-3 btn-outer-senshi rounded-full font-bold text-sm uppercase tracking-widest flex items-center"><Plus className="w-4 h-4 mr-2"/>新增議程</button>
-          </div>
-          {(!activeCase.meetings || activeCase.meetings.length === 0) ? (
-            <div className="text-center py-32 outer-tiffany-card border-dashed border-tiffany/30"><Mic className="w-16 h-16 text-tiffany/20 mx-auto mb-6" /><p className="text-tiffany/40 font-bold uppercase tracking-widest text-sm">尚無會議紀錄軌跡</p></div>
-          ) : (
-            <div className="space-y-8">{activeCase.meetings.map(meeting => (
-              <div key={meeting.id} className="outer-tiffany-card p-10 relative overflow-hidden group">
-                <div className="absolute top-8 right-8"><button onClick={() => handleDeleteMeeting(meeting.id)} className="text-slate-300 hover:text-red-400 transition-colors"><Trash2 className="w-5 h-5"/></button></div>
-                <div className="flex flex-col md:flex-row md:items-center gap-6 mb-10 border-b border-tiffany/10 pb-6">
-                  <div className="p-4 bg-tiffany/10 rounded-2xl text-tiffany-deep"><FileText className="w-6 h-6"/></div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-4 mb-2"><span className="text-[14px] font-black bg-tiffany text-white px-3 py-0.5 rounded-full uppercase tracking-widest">階段 {meeting.phaseId}</span><input type="date" value={meeting.date} onChange={(e) => { const updated = activeCase.meetings.map(m => m.id === meeting.id ? { ...m, date: e.target.value } : m); onUpdateActiveCase({ meetings: updated }); }} className="text-sm font-bold text-slate-400 bg-transparent border-none outline-none" /></div>
-                    <input type="text" value={meeting.title} onChange={(e) => { const updated = activeCase.meetings.map(m => m.id === meeting.id ? { ...m, title: e.target.value } : m); onUpdateActiveCase({ meetings: updated }); }} className="text-2xl font-bold text-slate-700 bg-transparent border-b-2 border-transparent focus:border-tiffany outline-none w-full cinzel py-1 transition-all" />
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 mt-6">
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center"><h4 className="text-[14px] font-black text-slate-400 uppercase tracking-widest flex items-center"><BookOpen className="w-4 h-4 mr-2 text-tiffany"/> 會議議程草案</h4><button onClick={() => handleDraftAgenda(meeting)} disabled={!!loadingState} className="text-[14px] font-bold text-tiffany-deep hover:underline disabled:opacity-30 flex items-center gap-1">{loadingState === meeting.id + '-agenda' ? '生成中...' : <><Sparkles className="w-4 h-4"/> 根據主題草擬議程</>}</button></div>
-                    <textarea className="w-full p-6 bg-slate-50/50 rounded-3xl border border-tiffany/5 text-base leading-relaxed text-slate-600 min-h-[250px] focus:bg-white outline-none" value={meeting.agenda} onChange={(e) => { const updated = activeCase.meetings.map(m => m.id === meeting.id ? { ...m, agenda: e.target.value } : m); onUpdateActiveCase({ meetings: updated }); }} />
-                  </div>
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center"><h4 className="text-[14px] font-black text-slate-400 uppercase tracking-widest flex items-center"><Mic className="w-4 h-4 mr-2 text-tiffany"/> 會議紀錄實錄</h4><div className="flex gap-4"><button onClick={() => { setTargetMeetingId(meeting.id); fileInputRef.current?.click(); }} className="text-[14px] font-bold text-tiffany-deep hover:underline">{meeting.recordingData ? '更換錄音' : '✦ 上傳錄音'}</button><button onClick={() => { setTargetMeetingId(meeting.id); transcriptInputRef.current?.click(); }} className="text-[14px] font-bold text-tiffany-deep hover:underline">{meeting.transcript ? '更換逐字稿' : '✦ 上傳逐字稿'}</button>{(meeting.recordingData || meeting.transcript) && (<button onClick={() => handleGenerateMinutes(meeting)} disabled={!!loadingState} className="text-[14px] font-bold text-purple-500 hover:underline disabled:opacity-30">{loadingState === meeting.id + '-minutes' ? '轉錄中...' : '✦ 生成會議紀錄'}</button>)}</div></div>
-                    <textarea className="w-full p-6 bg-slate-50/50 rounded-3xl border border-tiffany/5 text-base leading-relaxed text-slate-600 min-h-[250px] focus:bg-white outline-none" value={meeting.minutes} onChange={(e) => { const updated = activeCase.meetings.map(m => m.id === meeting.id ? { ...m, minutes: e.target.value } : m); onUpdateActiveCase({ meetings: updated }); }} />
-                  </div>
-                </div>
-              </div>
-            ))}</div>
-          )}
-        </div>
       ) : (
         <div className="animate-fadeIn space-y-12">
           <div className="flex justify-between items-center px-4">
@@ -803,8 +658,6 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
           </div>
         </div>
       )}
-      <input type="file" ref={fileInputRef} onChange={(e) => targetMeetingId && handleUploadRecording(e, targetMeetingId)} accept="audio/*" className="hidden" />
-      <input type="file" ref={transcriptInputRef} onChange={(e) => targetMeetingId && handleUploadTranscript(e, targetMeetingId)} accept=".txt,.md,.docx" className="hidden" />
     </div>
   );
 };

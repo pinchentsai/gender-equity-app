@@ -18,18 +18,6 @@ export interface KnowledgeFile {
   mimeType: string;
 }
 
-export interface Meeting {
-  id: string;
-  date: string;
-  title: string;
-  phaseId: number;
-  agenda: string;
-  minutes: string;
-  recordingData?: string;
-  recordingMimeType?: string;
-  transcript?: string;
-}
-
 export interface InterviewTranscript {
   id: string;
   name: string;
@@ -45,7 +33,6 @@ export interface CaseData {
   description: string;
   dates: CaseDates;
   checklist: Record<string, boolean>;
-  meetings: Meeting[];
   transcripts: InterviewTranscript[];
   investigationReport: string;
   extensionMonths: number; // 0, 1, or 2
