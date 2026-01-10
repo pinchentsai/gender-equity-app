@@ -458,7 +458,7 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
                   { label: '2.4 不受理申復期限', key: 'nonAcceptanceAppeal', color: 'border-teal-400' },
                   { label: '2.5-2 申復處理期限', key: 'nonAcceptanceAppealReview', color: 'border-teal-400' },
                   { label: '3.7 調查結案期限', key: 'investigation', color: 'border-amber-400' },
-                  { label: '5.2 權責機關議處期限', key: 'decision', color: 'border-purple-400' },
+                  { label: '5.3 書面通知處理結果', key: 'decision', color: 'border-purple-400' }, // 修改：標籤改為 5.3，key 保持對應原邏輯
                   { label: '6.1 申復提出期限', key: 'resultAppeal', color: 'border-indigo-400' },
                   { label: '6.2 申復審議期限', key: 'appealReview', color: 'border-indigo-400' },
                   { label: '6.3 重新調查期限', key: 'reinvestigation', color: 'border-indigo-400' },
@@ -468,7 +468,7 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
                   const isCompleted = activeCase.checklist?.[taskId] || false;
                   const status = getDeadlineStatus(deadlines[item.key], isCompleted);
 
-                  const isNA = (isStudentVsStudent && ['decision'].includes(item.key));
+                  const isNA = false; // 修改：解除生對生樣態的鎖定，所有樣態通用
 
                   return (
                     <div key={item.key} className={`p-5 rounded-2xl bg-white/5 border-l-4 transition-all ${
