@@ -1,8 +1,8 @@
 
 import React from 'react';
-import { Plus, Trash2, Shield, Compass, Heart, Sparkles, ChevronRight, AlertTriangle, Moon } from 'lucide-react';
+import { Plus, Trash2, Shield, Compass, Heart, Sparkles, ChevronRight, AlertTriangle, Moon, Clock } from 'lucide-react';
 import { CaseData, KnowledgeFile } from '../types';
-import { calculateDeadlines, isOverdue, DEADLINE_TASK_MAP } from '../utils/dateUtils';
+import { calculateDeadlines, isOverdue, DEADLINE_TASK_MAP, formatDate } from '../utils/dateUtils';
 import GeminiAssistant from './GeminiAssistant';
 import GitHubSync from './GitHubSync';
 
@@ -16,6 +16,21 @@ interface CaseListProps {
   onRestore: (cases: CaseData[], files: KnowledgeFile[]) => void;
   getNextStepText: (c: CaseData) => string;
 }
+
+// 時效鍵值對應的顯示標籤
+const DEADLINE_LABELS: Record<string, string> = {
+  report: "1.2 法定通報",
+  handover: "2.2 受理審查",
+  meetingDecide: "2.4 受理通知",
+  nonAcceptanceAppeal: "2.4 不受理申復",
+  nonAcceptanceAppealReview: "2.5-2 申復處理",
+  investigation: "3.7 調查結案",
+  decision: "5.3 書面通知",
+  resultAppeal: "6.1 申復提出",
+  appealReview: "6.2 申復審議",
+  reinvestigation: "6.3 重新調查",
+  remedy: "6.4 提起救濟"
+};
 
 const CaseList: React.FC<CaseListProps> = ({ 
   cases, 
@@ -73,6 +88,14 @@ const CaseList: React.FC<CaseListProps> = ({
                 const isCompleted = c.checklist?.[taskId] || false;
                 return isOverdue(date as Date, isCompleted);
               });
+
+              // 尋找最近一個未完成的到期日
+              const nextDeadlineEntry = Object.entries(caseDl)
+                .filter(([key, date]) => {
+                  const taskId = DEADLINE_TASK_MAP[key];
+                  return !c.checklist?.[taskId];
+                })
+                .sort((a, b) => (a[1] as Date).getTime() - (b[1] as Date).getTime())[0];
               
               return (
                 <div 
@@ -95,7 +118,7 @@ const CaseList: React.FC<CaseListProps> = ({
                     </h3>
                   </div>
 
-                  <div className="flex flex-wrap gap-3 mb-10">
+                  <div className="flex flex-wrap items-center gap-3 mb-10">
                     <span className={`text-[12px] px-4 py-1.5 rounded-full font-bold uppercase tracking-widest bg-white shadow-sm border ${
                       c.incidentType === 'sexual_harassment' ? 'text-orange-400 border-orange-100' :
                       c.incidentType === 'sexual_assault' ? 'text-red-400 border-red-100' : 'text-tiffany-deep border-tiffany/20'
@@ -103,9 +126,22 @@ const CaseList: React.FC<CaseListProps> = ({
                       {c.incidentType === 'sexual_harassment' ? '疑似性騷擾' : 
                        c.incidentType === 'sexual_assault' ? '疑似性侵害' : '疑似性霸凌'}
                     </span>
+
+                    {/* 下一個到期日提醒 */}
+                    {nextDeadlineEntry && (
+                      <span className={`flex items-center text-[11px] px-3 py-1.5 rounded-full font-bold uppercase tracking-widest shadow-sm border transition-all ${
+                        isOverdue(nextDeadlineEntry[1] as Date) 
+                          ? 'bg-red-50 text-red-500 border-red-200 animate-pulse' 
+                          : 'bg-sky-50 text-sky-600 border-sky-100'
+                      }`}>
+                        <Clock className="w-3.5 h-3.5 mr-1.5" />
+                        {DEADLINE_LABELS[nextDeadlineEntry[0]] || "到期"}: {formatDate(nextDeadlineEntry[1] as Date).split(' ')[0]}
+                      </span>
+                    )}
+
                     {isAnyOverdue && (
-                      <span className="flex items-center text-[12px] bg-red-400 text-white px-4 py-1.5 rounded-full font-bold uppercase tracking-widest animate-pulse">
-                        <AlertTriangle className="w-4 h-4 mr-2" /> 時空逾時
+                      <span className="flex items-center text-[11px] bg-red-500 text-white px-3 py-1.5 rounded-full font-bold uppercase tracking-widest animate-pulse shadow-md">
+                        <AlertTriangle className="w-3.5 h-3.5 mr-1.5" /> 時空逾時
                       </span>
                     )}
                   </div>
