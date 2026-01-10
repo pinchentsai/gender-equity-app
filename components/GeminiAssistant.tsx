@@ -65,10 +65,10 @@ const GeminiAssistant: React.FC<GeminiAssistantProps> = ({
         description,
         globalFiles
       );
-      // 修復 TS2345: 使用 ?? '' 確保傳入的是字串而非 undefined
       setResult(analysis ?? '');
-    } catch (err) {
-      setError('時空能量波干擾中，請檢查守護卷軸。');
+    } catch (err: any) {
+      console.error("Gemini Analysis Error:", err);
+      setError(`時空能量波干擾中：${err.message?.includes("API Key") ? "API 金鑰無效或未注入" : "通訊異常"}。請檢查 GitHub Secrets 或瀏覽器控制台紀錄。`);
     } finally {
       setLoading(false);
     }
@@ -119,7 +119,6 @@ const GeminiAssistant: React.FC<GeminiAssistantProps> = ({
         </div>
 
         <div className="p-10 space-y-10">
-          {/* 輸入區 */}
           <div className="space-y-6">
             <label className="text-[14px] font-black text-tiffany-deep/70 uppercase tracking-[0.3em] flex items-center">
               {isDetailMode ? <Sword className="w-4 h-4 mr-3 text-tiffany-deep" /> : <Sparkles className="w-4 h-4 mr-3 text-yellow-400" />}
@@ -129,13 +128,13 @@ const GeminiAssistant: React.FC<GeminiAssistantProps> = ({
               className="w-full p-6 bg-white/50 border border-tiffany/10 rounded-3xl focus:border-tiffany focus:ring-4 focus:ring-tiffany/5 outline-none text-sm text-slate-600 transition-all shadow-inner placeholder:text-slate-300"
               placeholder={isDetailMode ? "描述此事件的因果流轉..." : "輸入關於法規的疑惑，尋求星辰引導..."}
               rows={5}
-              value={isDetailMode ? activeCase.description : generalQuery}
+              value={isDetailMode ? activeCase?.description : generalQuery}
               onChange={(e) => isDetailMode ? onUpdateCase?.({ description: e.target.value }) : setGeneralQuery(e.target.value)}
             />
 
             <button 
               onClick={handleAnalyze}
-              disabled={loading || (isDetailMode ? !activeCase.description : !generalQuery) || !globalFiles.length}
+              disabled={loading || (isDetailMode ? !activeCase?.description : !generalQuery) || !globalFiles.length}
               className="w-full py-5 btn-outer-senshi rounded-full font-bold text-sm tracking-[0.3em] uppercase disabled:opacity-30 flex items-center justify-center"
             >
               {loading ? <Loader className="w-5 h-5 mr-4 animate-spin"/> : <Gem className="w-5 h-5 mr-4" />}
@@ -148,7 +147,6 @@ const GeminiAssistant: React.FC<GeminiAssistantProps> = ({
             )}
           </div>
 
-          {/* 結果報告 */}
           {result && (
             <div className="mt-12 animate-fadeIn bg-white/90 rounded-[2.5rem] p-10 border border-tiffany/20 shadow-lg relative overflow-hidden">
               <div className="flex justify-between items-center mb-8 border-b border-tiffany/10 pb-5">

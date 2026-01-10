@@ -61,16 +61,13 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
   const isPhase6Dismissed = activeCase.phase6AppealStatus === 'filed' && activeCase.phase6AppealResult === 'unsubstantiated';
   const isReinvestigationMode = activeCase.phase6AppealFollowUp === 'reinvestigation';
 
-  // 相依性檢查
   const isStatutoryReportDone = activeCase.checklist['1.2'] === true;
 
-  // 日期驗證
   const acceptanceDateError = !isValidSequence(activeCase.dates.known, activeCase.dates.acceptance);
   const resultNoticeError = !isValidSequence(activeCase.dates.reportHandover, activeCase.dates.resultNotice);
 
   const dynamicPhases = useMemo(() => {
     return PHASES_DATA.map(phase => {
-      // 處理第二星軌：動態新增申復任務
       if (phase.id === 2) {
         const newTasks = [...phase.tasks];
         if (activeCase.decisionStatus === 'not_accepted' && activeCase.filedAppeal) {
@@ -84,7 +81,6 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
         return { ...phase, tasks: newTasks };
       }
 
-      // 處理第三星軌：判定調查機制 (直接調查程序 vs 調查小組程序)
       if (phase.id === 3 && activeCase.investigationMechanism === 'committee_direct') {
         return {
           ...phase,
@@ -144,9 +140,9 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
       });
       const updated = activeCase.meetings.map(m => m.id === meeting.id ? { ...m, agenda: agenda || "" } : m);
       onUpdateActiveCase({ meetings: updated });
-    } catch (err) {
+    } catch (err: any) {
       console.error("Agenda generation error:", err);
-      alert("時空通訊中斷，無法草擬議程。");
+      alert(`時空通訊中斷：${err.message?.includes("API Key") ? "API 金鑰設定有誤" : "連線逾時"}。請檢查控制台紀錄。`);
     } finally {
       setLoadingState(null);
     }
@@ -211,9 +207,9 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
       });
       const updated = activeCase.meetings.map(m => m.id === meeting.id ? { ...m, minutes: minutes || "" } : m);
       onUpdateActiveCase({ meetings: updated });
-    } catch (err) {
+    } catch (err: any) {
       console.error("Minutes generation error:", err);
-      alert("轉錄解析失敗。");
+      alert(`轉錄解析失敗：${err.message || "通訊異常"}。`);
     } finally {
       setLoadingState(null);
     }
@@ -265,9 +261,9 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
     try {
       const report = await callGeminiReportGenerator(activeCase);
       onUpdateActiveCase({ investigationReport: report || "" });
-    } catch (err) {
+    } catch (err: any) {
       console.error("Report Generation Error:", err);
-      alert("報告生成失敗，請檢查網路連線或 API 金鑰權限。");
+      alert(`報告生成失敗：${err.message?.includes("API Key") ? "API 金鑰設定有誤" : "服務暫時不可用"}。請檢查 GitHub Secrets 或控制台。`);
     } finally {
       setLoadingState(null);
     }
@@ -296,7 +292,6 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
 
       {tab === 'info' ? (
         <>
-          {/* Fix: Use progressStats.percentage instead of the undefined variable 'percentage' */}
           <ProgressBar currentPhase={progressStats.currentPhase} percentage={progressStats.percentage} />
 
           <section className="outer-tiffany-card p-8 md:p-10 mb-10 border-white/50">
@@ -544,7 +539,6 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
                         const isTaskLockedByDismissal = isPhase6Dismissed && task.id === "6.3";
                         const isTaskLockedByReinvestigation = isReinvestigationMode && task.id === "6.4";
                         
-                        // 任務相依性：必須先通報(1.2)才能啟動受理決策(2.3之後的任務)
                         const isTaskLockedByStatutoryReport = !isStatutoryReportDone && task.id === "2.3";
 
                         const isCurrentlyLocked = isTaskLockedByUnsubstantiated || isTaskLockedByNoAppeal || isTaskLockedByReinvestigation || isTaskLockedByStudentVsStudent || isTaskLockedByStatutoryReport || (isTaskLockedByDismissal && !activeCase.phase6AppealResult);
