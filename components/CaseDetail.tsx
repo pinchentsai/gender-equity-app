@@ -576,7 +576,7 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
                                   <span className={`font-bold text-base ${task.important ? 'text-red-500' : 'text-slate-700'} ${activeCase.checklist?.[task.id] ? 'line-through opacity-40' : ''}`}>
                                     {task.text} 
                                     {isTaskLockedByUnsubstantiated && " (不成立故鎖定)"}
-                                    {isTaskLockedByStudentVsStudent && " (生對生案件不適用移送議處程序)"}
+                                    {isTaskLockedByStudentVsStudent && " (行為人國小生案件不適用移送議處程序)"}
                                     {isTaskLockedByNoAppeal && " (全案確定故鎖定)"}
                                     {isTaskLockedByDismissal && task.id === "6.3" && " (申復駁回故鎖定)"}
                                     {isTaskLockedByReinvestigation && " (重新調查中，暫停救濟程序)"}
