@@ -296,6 +296,7 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
 
       {tab === 'info' ? (
         <>
+          {/* Fix: Use progressStats.percentage instead of the undefined variable 'percentage' */}
           <ProgressBar currentPhase={progressStats.currentPhase} percentage={progressStats.percentage} />
 
           <section className="outer-tiffany-card p-8 md:p-10 mb-10 border-white/50">
@@ -753,10 +754,43 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
             <input type="file" ref={reportTranscriptInputRef} onChange={handleUploadReportTranscript} accept=".txt,.md,.docx" multiple className="hidden" />
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
-            <div className="lg:col-span-1 space-y-6">
-              <h3 className="text-[14px] font-black text-slate-400 uppercase tracking-widest flex items-center px-2"><UserCheck className="w-5 h-5 mr-2 text-tiffany"/> 已匯入之證詞 ({activeCase.transcripts?.length || 0})</h3>
-              <div className="space-y-4">{(!activeCase.transcripts || activeCase.transcripts.length === 0) ? (<div className="p-10 border-2 border-dashed border-tiffany/10 rounded-3xl text-center"><p className="text-sm text-tiffany/30 font-bold uppercase tracking-widest">尚無訪談資料</p></div>) : (activeCase.transcripts.map(t => (<div key={t.id} className="p-5 bg-white/60 border border-tiffany/10 rounded-2xl flex justify-between items-center pearl-shadow hover:border-tiffany transition-all"><div className="flex items-center gap-3 truncate"><div className="p-2 bg-tiffany/10 rounded-lg"><FileCheck className="w-4 h-4 text-tiffany-deep" /></div><span className="text-base font-bold text-slate-600 truncate">{t.name}</span></div><button onClick={() => handleDeleteTranscript(t.id)} className="text-slate-300 hover:text-red-400 transition-colors"><Trash2 className="w-5 h-5"/></button></div>)))}</div>
-              <button onClick={handleGenerateReport} disabled={loadingState === 'report-generating' || !activeCase.transcripts?.length} className="w-full py-5 btn-outer-senshi rounded-full font-bold text-base tracking-[0.2em] uppercase disabled:opacity-30 flex items-center justify-center mt-8 shadow-lg active:scale-95 transition-all">{loadingState === 'report-generating' ? <Loader className="w-6 h-6 mr-3 animate-spin"/> : <Sparkles className="w-6 h-6 mr-3" />}{loadingState === 'report-generating' ? '審理生成中...' : '✦ 一鍵草擬調查報告'}</button>
+            <div className="lg:col-span-1 space-y-8">
+              <div className="space-y-6">
+                <h3 className="text-[14px] font-black text-slate-400 uppercase tracking-widest flex items-center px-2"><Hammer className="w-5 h-5 mr-2 text-tiffany"/> 事實認定預設方向</h3>
+                <div className="flex flex-col gap-3">
+                  {[
+                    { id: 'substantiated', label: '預設：成立 (屬實)', color: 'bg-amber-500', hover: 'hover:bg-amber-600' },
+                    { id: 'unsubstantiated', label: '預設：不成立', color: 'bg-slate-700', hover: 'hover:bg-slate-800' },
+                    { id: 'pending', label: '交由 AI 判斷', color: 'bg-teal-500', hover: 'hover:bg-teal-600' }
+                  ].map(opt => (
+                    <button 
+                      key={opt.id} 
+                      onClick={() => onUpdateActiveCase({ investigationResult: opt.id as any })} 
+                      className={`py-3 px-6 rounded-2xl border-2 font-bold text-sm transition-all flex items-center justify-between ${
+                        activeCase.investigationResult === opt.id 
+                          ? `${opt.color} text-white border-transparent shadow-lg scale-[1.02]` 
+                          : 'bg-white text-slate-400 border-slate-100 hover:border-tiffany/30'
+                      }`}
+                    >
+                      <span>{opt.label}</span>
+                      {activeCase.investigationResult === opt.id && <CheckCircle className="w-4 h-4" />}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <h3 className="text-[14px] font-black text-slate-400 uppercase tracking-widest flex items-center px-2"><UserCheck className="w-5 h-5 mr-2 text-tiffany"/> 已匯入之證詞 ({activeCase.transcripts?.length || 0})</h3>
+                <div className="space-y-4">{(!activeCase.transcripts || activeCase.transcripts.length === 0) ? (<div className="p-10 border-2 border-dashed border-tiffany/10 rounded-3xl text-center"><p className="text-sm text-tiffany/30 font-bold uppercase tracking-widest">尚無訪談資料</p></div>) : (activeCase.transcripts.map(t => (<div key={t.id} className="p-5 bg-white/60 border border-tiffany/10 rounded-2xl flex justify-between items-center pearl-shadow hover:border-tiffany transition-all"><div className="flex items-center gap-3 truncate"><div className="p-2 bg-tiffany/10 rounded-lg"><FileCheck className="w-4 h-4 text-tiffany-deep" /></div><span className="text-base font-bold text-slate-600 truncate">{t.name}</span></div><button onClick={() => handleDeleteTranscript(t.id)} className="text-slate-300 hover:text-red-400 transition-colors"><Trash2 className="w-5 h-5"/></button></div>)))}</div>
+                <button 
+                  onClick={handleGenerateReport} 
+                  disabled={loadingState === 'report-generating' || !activeCase.transcripts?.length} 
+                  className="w-full py-5 btn-outer-senshi rounded-full font-bold text-base tracking-[0.2em] uppercase disabled:opacity-30 flex items-center justify-center mt-8 shadow-lg active:scale-95 transition-all"
+                >
+                  {loadingState === 'report-generating' ? <Loader className="w-6 h-6 mr-3 animate-spin"/> : <Sparkles className="w-6 h-6 mr-3" />}
+                  {loadingState === 'report-generating' ? '審理生成中...' : '✦ 一鍵草擬調查報告'}
+                </button>
+              </div>
             </div>
             <div className="lg:col-span-2 space-y-6">
               <h3 className="text-[14px] font-black text-slate-400 uppercase tracking-widest flex items-center px-2"><ClipboardList className="w-5 h-5 mr-2 text-tiffany"/> 調查報告草案實錄</h3>

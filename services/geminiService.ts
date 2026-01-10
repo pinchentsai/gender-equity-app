@@ -79,13 +79,36 @@ export const callGeminiReportGenerator = async (caseData: CaseData) => {
   
   const transcriptsText = caseData.transcripts?.map(t => `【證詞：${t.name}】\n${t.content}`).join("\n\n") || "尚無逐字稿。";
 
-  const prompt = `請根據以下訪談逐字稿與案件資訊，生成一份正式的「校園性別事件調查報告」草案：\n\n案件：${caseData.name}\n樣態：${caseData.incidentType}\n初步描述：${caseData.description}\n\n訪談內容匯整：\n${transcriptsText}\n\n報告應包含：1. 案件概述 2. 調查過程 3. 事實認定 4. 理由與建議處置。`;
+  // 根據使用者的選擇設定判定方向
+  const resultDirection = caseData.investigationResult === 'substantiated' 
+    ? "【本案判定方向：成立 (屬實)】" 
+    : caseData.investigationResult === 'unsubstantiated' 
+      ? "【本案判定方向：不成立 (不屬實)】" 
+      : "【本案判定方向：由 AI 根據證詞中立判定】";
+
+  const prompt = `請根據以下訪談逐字稿與案件資訊，生成一份正式的「校園性別事件調查報告」草案：
+
+案件名稱：${caseData.name}
+事件樣態：${caseData.incidentType}
+初步描述：${caseData.description}
+
+${resultDirection}
+
+訪談內容匯整：
+${transcriptsText}
+
+報告撰寫指令：
+1. 必須嚴格遵守上述之「判定方向」。
+2. 若為「成立」：請詳述違法事實之認定理由，並根據防治準則提出具體之處置建議（如：記過、申誡、性平教育課程等）。
+3. 若為「不成立」：請詳述證據不足或不符合法律要件之理由，並提出後續之輔導與保護措施建議。
+4. 報告應包含正式結構：1. 案件概述 2. 調查過程 3. 事實認定 4. 理由與建議。
+5. 使用正式、嚴謹的法律公文體裁。`;
 
   const response = await ai.models.generateContent({
     model: 'gemini-3-pro-preview',
     contents: prompt,
     config: {
-      systemInstruction: REGULATORY_CONTEXT + "\n請以正式、嚴謹的法律公文體裁撰寫報告。",
+      systemInstruction: REGULATORY_CONTEXT + "\n你是一位資深的校園性平調查專員，負責撰寫結案報告草案。",
     },
   });
 
