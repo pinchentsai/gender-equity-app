@@ -55,7 +55,14 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
 
   const isTeacherVsStudent = activeCase.incidentRoleType === 'teacher_vs_student';
   const isStudentVsStudent = activeCase.incidentRoleType === 'student_vs_student_middle_up' || activeCase.incidentRoleType === 'student_vs_student_elementary';
-  const LOCKED_TASKS_IF_STUDENT_VS_STUDENT = ['4.4', '5.1', '5.2'];
+  
+  // 判定是否為國小生對生樣態
+  const isElementaryStudentPerpetrator = activeCase.incidentRoleType === 'student_vs_student_elementary';
+  
+  // 動態上鎖：國小生對生則 4.3 也上鎖；其餘生對生則鎖 4.4, 5.1, 5.2
+  const LOCKED_TASKS_IF_STUDENT_VS_STUDENT = isElementaryStudentPerpetrator 
+    ? ['4.3', '4.4', '5.1', '5.2'] 
+    : ['4.4', '5.1', '5.2'];
 
   const isPhase6LockedByNoAppeal = activeCase.phase6AppealStatus === 'none';
   const isPhase6Dismissed = activeCase.phase6AppealStatus === 'filed' && activeCase.phase6AppealResult === 'unsubstantiated';
@@ -534,7 +541,10 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
                     <div className="p-8 space-y-6 animate-fadeIn bg-white/50">
                       {phase.tasks.map(task => {
                         const isTaskLockedByUnsubstantiated = isInvestigationUnsubstantiated && LOCKED_TASKS_IF_UNSUBSTANTIATED.includes(task.id);
+                        
+                        // 動態判斷生對生上鎖邏輯 (國小額外鎖 4.3)
                         const isTaskLockedByStudentVsStudent = isStudentVsStudent && LOCKED_TASKS_IF_STUDENT_VS_STUDENT.includes(task.id);
+                        
                         const isTaskLockedByNoAppeal = isPhase6LockedByNoAppeal && phase.id === 6 && task.id !== "6.1";
                         const isTaskLockedByDismissal = isPhase6Dismissed && task.id === "6.3";
                         const isTaskLockedByReinvestigation = isReinvestigationMode && task.id === "6.4";
