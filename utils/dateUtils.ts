@@ -54,11 +54,11 @@ export const DEADLINE_TASK_MAP: Record<string, string> = {
   meetingDecide: "2.4",
   nonAcceptanceAppeal: "2.4", 
   nonAcceptanceAppealReview: "2.5-2",
-  investigation: "3.7",
-  decision: "5.3", // 修改：對應到 5.3 書面通知處理結果
+  investigation: "4.1", // 修改：調查結案期限改為依循 4.1 性平會審議完成
+  decision: "5.3", // 對應到 5.3 書面通知處理結果
   resultAppeal: "6.1",
   appealReview: "6.2",
-  reinvestigation: "6.5-2",
+  reinvestigation: "6.3", 
   remedy: "6.4"
 };
 

@@ -19,6 +19,7 @@ interface CaseDetailProps {
   onUpdateActiveCase: (updates: Partial<CaseData>) => void;
   onUpdateDates: (field: keyof CaseDates, value: string) => void;
   onToggleCheck: (taskId: string) => void;
+  onUpdateCompletionDate: (taskId: string, date: string) => void;
   onUpdateGlobalFiles: (files: KnowledgeFile[]) => void;
 }
 
@@ -31,6 +32,7 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
   onUpdateActiveCase,
   onUpdateDates,
   onToggleCheck,
+  onUpdateCompletionDate,
   onUpdateGlobalFiles
 }) => {
   const [tab, setTab] = useState<'info' | 'report'>('info');
@@ -53,10 +55,8 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
   const isTeacherVsStudent = activeCase.incidentRoleType === 'teacher_vs_student';
   const isStudentVsStudent = activeCase.incidentRoleType === 'student_vs_student_middle_up' || activeCase.incidentRoleType === 'student_vs_student_elementary';
   
-  // 判定是否為國小生對生樣態
   const isElementaryStudentPerpetrator = activeCase.incidentRoleType === 'student_vs_student_elementary';
   
-  // 動態上鎖：國小生對生則 4.3 也上鎖；其餘生對生則鎖 4.4, 5.1, 5.2
   const LOCKED_TASKS_IF_STUDENT_VS_STUDENT = isElementaryStudentPerpetrator 
     ? ['4.3', '4.4', '5.1', '5.2'] 
     : ['4.4', '5.1', '5.2'];
@@ -70,6 +70,9 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
   const acceptanceDateError = !isValidSequence(activeCase.dates.known, activeCase.dates.acceptance);
   const resultNoticeError = !isValidSequence(activeCase.dates.reportHandover, activeCase.dates.resultNotice);
 
+  // 取得所有對應到沙漏時效的任務 ID
+  const hourglassTaskIds = useMemo(() => Object.values(DEADLINE_TASK_MAP), []);
+
   const dynamicPhases = useMemo(() => {
     return PHASES_DATA.map(phase => {
       if (phase.id === 2) {
@@ -78,7 +81,7 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
           const appealTasks: Task[] = [
             { id: "2.5-1", text: "召開性平會重新議決 (申復處理)", note: "性平法§32-3：學校接獲申復後，應將案件交由性平會重新討論受理事宜。", unit: "性平會", important: true },
             { id: "2.5-2", text: "書面通知申復結果", note: "性平法§32-3：學校應於接獲申復後 20 日內，將申復結果以書面通知申復人。", unit: "性平會", deadlineRef: "nonAcceptanceAppealReview", important: true },
-            { id: "2.5-3", text: "啟動調查(若申復有理由)", note: "性平法§32-3：若改為決定受理，性平會應即依法啟動調查程序，並於2個月內完成。", unit: "性平會" }
+            { id: "2.5-3", text: "啟動調查(若申復有理由)", note: "性平法§32-3：若改為決定受理，性平會應即依法啟動調查程序，並於 2 個月內完成。", unit: "性平會" }
           ];
           newTasks.push(...appealTasks);
         }
@@ -90,12 +93,12 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
           ...phase,
           title: "第三星軌：性平會直接調查 (簡易程序)",
           tasks: [
-            { id: "3.1", text: "調查/會議通知 (含權利告知)", note: "性平法§33、防治準則§23：雖不組小組，仍應秉持客觀公正原則通知當事人配合調查，並告知權益。", unit: "性平會" },
-            { id: "3.2", text: "相關事證蒐集與確認", note: "性平法§33：由性平會直接蒐集事證(監視器、書面等)，確認事實是否明確無爭議。", unit: "性平會" },
+            { id: "3.1", text: "調查/會議通知 (含權利告知)", note: "性平法§25/防治準則§24-5：雖不組小組，仍應秉持客觀公正原則通知當事人配合調查，並告知權益。", unit: "性平會" },
+            { id: "3.2", text: "相關事證蒐集與確認", note: "性平法§33-1/防治準則§24：由性平會直接蒐集事證(監視器、書面等)，確認事實是否明確無爭議。", unit: "性平會" },
             { id: "3.3", text: "性平會查證/審議 (取代訪談)", note: "性平法§23：應給予充分陳述意見機會。雖未組小組，仍需經委員會會議實質審議事證。", unit: "性平會", important: true },
             { id: "3.4", text: "查證紀錄確認", note: "防治準則§24：相關訪談或會議紀錄應經確認（應由當事人簽名）。", unit: "性平會" },
-            { id: "3.5", text: "保密與檔案處理", note: "性平法§22、防治準則§25-3：密件處理，代號呈現。", unit: "性平會" },
-            { id: "3.6", text: "撰寫調查報告 (由性平會完成)", note: "性平法§33、施行細則§17：性平會應撰寫調查報告（含事實認定、理由及處理建議）。", unit: "性平會", important: true, deadlineRef: "investigation" }
+            { id: "3.5", text: "保密與檔案處理", note: "性平法§23-2/防治準則§25：密件處理，代號呈現。", unit: "性平會" },
+            { id: "3.6", text: "撰寫調查報告 (由性平會完成)", note: "性平法§36-2/施行細則§17：性平會應撰寫調查報告（含事實認定、理由及處理建議）。", unit: "性平會", important: true, deadlineRef: "investigation" }
           ]
         };
       }
@@ -191,7 +194,6 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
 
       {tab === 'info' ? (
         <>
-          {/* Fix: Access percentage through progressStats.percentage to resolve 'percentage' is not defined error */}
           <ProgressBar currentPhase={progressStats.currentPhase} percentage={progressStats.percentage} />
 
           <section className="outer-tiffany-card p-8 md:p-10 mb-10 border-white/50">
@@ -346,7 +348,7 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
               <div className="p-8 grid grid-cols-2 lg:grid-cols-4 gap-6">
                 {[
                   { label: '1.2 法定通報期限', key: 'report', color: 'border-sky-400' },
-                  { label: '2.2 受理審查期限', key: 'handover', color: 'border-teal-400' },
+                  { label: '2.2 申請書移交性平會時限', key: 'handover', color: 'border-teal-400' },
                   { label: '2.4 受理通知期限', key: 'meetingDecide', color: 'border-teal-400' },
                   { label: '2.4 不受理申復期限', key: 'nonAcceptanceAppeal', color: 'border-teal-400' },
                   { label: '2.5-2 申復處理期限', key: 'nonAcceptanceAppealReview', color: 'border-teal-400' },
@@ -359,6 +361,7 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
                 ].filter(item => !!deadlines[item.key]).map(item => {
                   const taskId = DEADLINE_TASK_MAP[item.key];
                   const isCompleted = activeCase.checklist?.[taskId] || false;
+                  const completionDate = activeCase.completionDates?.[taskId];
                   const status = getDeadlineStatus(deadlines[item.key], isCompleted);
                   const isNA = false;
 
@@ -386,7 +389,12 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
                         {isNA ? '不適用 (特殊樣態)' : formatDate(deadlines[item.key]).split(' ')[0]}
                       </div>
                       {isCompleted ? (
-                        <div className="text-[14px] text-green-400/60 font-bold mt-1 uppercase">任務 {taskId} 已完成</div>
+                        <div className="mt-2 flex flex-col gap-1">
+                          <div className="text-[12px] text-green-400/60 font-bold uppercase">任務 {taskId} 已完成</div>
+                          {completionDate && (
+                            <div className="text-[11px] text-white/60 font-bold italic">實際完成: {completionDate}</div>
+                          )}
+                        </div>
                       ) : status === 'warning' ? (
                         <div className="text-[11px] text-yellow-400 font-bold mt-1 uppercase">✦ 倒數 3 日・預警色標</div>
                       ) : null}
@@ -443,6 +451,8 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
 
                         const deadlineRef = task.deadlineRef;
                         const status = deadlineRef ? getDeadlineStatus(deadlines[deadlineRef], activeCase.checklist[task.id]) : 'ok';
+                        
+                        const isHourglassTask = hourglassTaskIds.includes(task.id);
 
                         return (
                           <div key={task.id} className={`flex flex-col gap-4 p-5 rounded-2xl border border-transparent transition-all ${activeCase.checklist?.[task.id] ? `${theme.bg} opacity-60` : 'hover:border-slate-100 hover:bg-white'} ${isCurrentlyLocked ? 'grayscale opacity-40 pointer-events-none' : ''}`}>
@@ -454,23 +464,39 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
                                 className={`mt-1.5 h-6 w-6 rounded-lg border-slate-200 cursor-pointer transition-all ${theme.checkbox}`} 
                               />
                               <div className="flex-1">
-                                <div className="flex flex-wrap items-center gap-3 mb-2">
-                                  <span className={`text-[12px] font-bold bg-white border px-2 py-0.5 rounded-full transition-all ${
-                                    status === 'warning' ? 'border-yellow-400 text-yellow-500 animate-pulse ring-4 ring-yellow-400/20 bg-yellow-50' : 
-                                    status === 'overdue' ? 'border-red-400 text-red-500 bg-red-50' :
-                                    `${theme.border} ${theme.text}`
-                                  }`}>{task.id}</span>
-                                  
-                                  <span className={`font-bold text-base ${task.important ? 'text-red-500' : 'text-slate-700'} ${activeCase.checklist?.[task.id] ? 'line-through opacity-40' : ''}`}>
-                                    {task.text} 
-                                    {isTaskLockedByUnsubstantiated && " (不成立故鎖定)"}
-                                    {isTaskLockedByStudentVsStudent && " (行為人國小生案件不適用移送議處程序)"}
-                                    {isTaskLockedByNoAppeal && " (全案確定故鎖定)"}
-                                    {isTaskLockedByDismissal && task.id === "6.3" && " (申復駁回故鎖定)"}
-                                    {isTaskLockedByReinvestigation && " (重新調查中，暫停救濟程序)"}
-                                    {isTaskLockedByStatutoryReport && " (⚠ 請先完成 1.2 法定通報以解鎖)"}
-                                  </span>
-                                  
+                                <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
+                                  <div className="flex items-center gap-3">
+                                    <span className={`text-[12px] font-bold bg-white border px-2 py-0.5 rounded-full transition-all ${
+                                      status === 'warning' ? 'border-yellow-400 text-yellow-500 animate-pulse ring-4 ring-yellow-400/20 bg-yellow-50' : 
+                                      status === 'overdue' ? 'border-red-400 text-red-500 bg-red-50' :
+                                      `${theme.border} ${theme.text}`
+                                    }`}>{task.id}</span>
+                                    
+                                    <span className={`font-bold text-base ${task.important ? 'text-red-500' : 'text-slate-700'} ${activeCase.checklist?.[task.id] ? 'line-through opacity-40' : ''}`}>
+                                      {task.text} 
+                                      {isTaskLockedByUnsubstantiated && " (不成立故鎖定)"}
+                                      {isTaskLockedByStudentVsStudent && " (行為人國小生案件不適用移送議處程序)"}
+                                      {isTaskLockedByNoAppeal && " (全案確定故鎖定)"}
+                                      {isTaskLockedByDismissal && task.id === "6.3" && " (申復駁回故鎖定)"}
+                                      {isTaskLockedByReinvestigation && " (重新調查中，暫停救濟程序)"}
+                                      {isTaskLockedByStatutoryReport && " (⚠ 請先完成 1.2 法定通報以解鎖)"}
+                                    </span>
+                                  </div>
+
+                                  {isHourglassTask && (
+                                    <div className="flex flex-col items-end gap-1">
+                                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">實際完成日期</label>
+                                      <input 
+                                        type="date" 
+                                        className="p-1.5 text-xs border border-slate-200 rounded-lg focus:ring-2 focus:ring-tiffany/30 outline-none bg-white"
+                                        value={activeCase.completionDates?.[task.id] || ''}
+                                        onChange={(e) => onUpdateCompletionDate(task.id, e.target.value)}
+                                      />
+                                    </div>
+                                  )}
+                                </div>
+                                
+                                <div className="flex flex-wrap items-center gap-3">
                                   {task.unit && <span className={`text-[14px] bg-white border px-3 py-0.5 rounded-full font-bold ${theme.border} ${theme.text} opacity-70`}>{task.unit}</span>}
                                   {task.important && <span className="text-[10px] bg-red-500 text-white px-2 py-0.5 rounded-full font-bold animate-pulse">① 重要</span>}
                                   {status === 'warning' && !activeCase.checklist[task.id] && <span className="text-[10px] bg-yellow-400 text-white px-3 py-0.5 rounded-full font-bold animate-pulse shadow-sm ring-2 ring-yellow-200">⚠ 3日內截止</span>}
@@ -479,7 +505,8 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
                               </div>
                             </div>
 
-                            {task.id === "2.4" && (
+                            {/* 2.3 受理決定判定 與 調查機制選擇 */}
+                            {task.id === "2.3" && (
                               <div className="ml-11 mt-4 p-6 bg-white/60 border border-teal-100 rounded-3xl space-y-6">
                                 <div>
                                   <label className="text-[12px] font-black text-teal-600 uppercase tracking-widest mb-4 block flex items-center">
@@ -538,16 +565,23 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
                                     </div>
                                   </div>
                                 )}
+                              </div>
+                            )}
 
-                                {activeCase.decisionStatus === 'not_accepted' && (
-                                  <div className="pt-6 border-t border-teal-50 animate-fadeIn">
-                                    <label className="text-[12px] font-black text-orange-500 uppercase tracking-widest mb-4 block flex items-center"><HelpCircle className="w-4 h-4 mr-2"/> 申復支線：申請人是否提出申復？</label>
-                                    <div className="flex gap-4">
-                                      <button onClick={() => onUpdateActiveCase({ filedAppeal: true })} className={`px-8 py-3 rounded-2xl border-2 font-bold text-sm transition-all flex items-center gap-2 ${activeCase.filedAppeal ? 'bg-orange-500 text-white border-orange-500 shadow-lg' : 'bg-white text-slate-400 border-orange-50 hover:bg-orange-50'}`}>{activeCase.filedAppeal && <CheckCircle className="w-4 h-4" />}有提出申復</button>
-                                      <button onClick={() => onUpdateActiveCase({ filedAppeal: false })} className={`px-8 py-3 rounded-2xl border-2 font-bold text-sm transition-all ${activeCase.filedAppeal === false ? 'bg-slate-500 text-white border-slate-500 shadow-lg' : 'bg-white text-slate-400 border-orange-50 hover:bg-orange-50'}`}>無提出申復 (結案)</button>
-                                    </div>
-                                  </div>
-                                )}
+                            {/* 2.4 下方顯示申復支線選擇 (若 2.3 判定為不予受理) */}
+                            {task.id === "2.4" && activeCase.decisionStatus === 'not_accepted' && (
+                              <div className="ml-11 mt-4 p-6 bg-white/60 border border-orange-100 rounded-3xl animate-fadeIn">
+                                <label className="text-[12px] font-black text-orange-500 uppercase tracking-widest mb-4 block flex items-center">
+                                  <HelpCircle className="w-4 h-4 mr-2"/> 申復支線：申請人是否提出申復？
+                                </label>
+                                <div className="flex gap-4">
+                                  <button onClick={() => onUpdateActiveCase({ filedAppeal: true })} className={`px-8 py-3 rounded-2xl border-2 font-bold text-sm transition-all flex items-center gap-2 ${activeCase.filedAppeal ? 'bg-orange-500 text-white border-orange-500 shadow-lg' : 'bg-white text-slate-400 border-orange-50 hover:bg-orange-50'}`}>
+                                    {activeCase.filedAppeal && <CheckCircle className="w-4 h-4" />}有提出申復
+                                  </button>
+                                  <button onClick={() => onUpdateActiveCase({ filedAppeal: false })} className={`px-8 py-3 rounded-2xl border-2 font-bold text-sm transition-all ${activeCase.filedAppeal === false ? 'bg-slate-500 text-white border-slate-500 shadow-lg' : 'bg-white text-slate-400 border-orange-50 hover:bg-orange-50'}`}>
+                                    無提出申復 (結案)
+                                  </button>
+                                </div>
                               </div>
                             )}
 

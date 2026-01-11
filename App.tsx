@@ -7,6 +7,7 @@ import CaseList from './components/CaseList';
 import CaseDetail from './components/CaseDetail';
 import HelpTutorial from './components/HelpTutorial';
 
+// Fix: Add the missing implementation and default export for the App component to resolve the "no default export" error.
 const App: React.FC = () => {
   const [view, setView] = useState<'list' | 'detail'>('list');
   const [isHelpOpen, setIsHelpOpen] = useState(false);
@@ -25,6 +26,7 @@ const App: React.FC = () => {
     updateActiveCase,
     updateDates,
     toggleCheck,
+    updateCompletionDate,
     updateGlobalFiles
   } = useCaseManagement();
 
@@ -83,42 +85,29 @@ const App: React.FC = () => {
               <div className="bg-[#81d8d0] p-3 rounded-full shadow-lg shadow-tiffany/20 transform group-hover:rotate-[360deg] transition-transform duration-700">
                 <Shield className="w-6 h-6 text-white" />
               </div>
-              <div className="absolute -top-1 -right-1">
-                <Star className="w-3 h-3 text-yellow-400 fill-yellow-400 animate-pulse" />
-              </div>
             </div>
             <div>
-              <h1 className="text-2xl font-bold tracking-widest text-slate-700 flex items-center cinzel">
-                性平智慧守護星
-                <span className="text-[10px] bg-[#81d8d0] text-white px-2 py-0.5 ml-3 rounded font-bold tracking-tighter">OUTER SENSHI</span>
+              <h1 className="text-2xl font-bold text-slate-700 cinzel tracking-widest">
+                星際守護者・性平星軌
               </h1>
-              <div className="text-[9px] text-tiffany-deep font-bold uppercase tracking-[0.5em] mt-1">Deep Sea & Space-Time Sentinel</div>
+              <div className="text-[10px] text-tiffany-deep font-black tracking-widest uppercase flex items-center">
+                <span className="mr-2">✦</span> Outer Sentinels: Equity Orbit
+              </div>
             </div>
           </div>
-          
-          <div className="flex items-center gap-4">
-            <button 
-              onClick={() => setIsHelpOpen(true)}
-              className="p-3 text-tiffany-deep hover:bg-tiffany/10 rounded-full transition-all"
-              title="查看上傳教學"
-            >
-              <BookOpen className="w-5 h-5" />
-            </button>
-
-            {view === 'detail' && (
-              <button 
-                onClick={() => setView('list')} 
-                className="px-6 py-2 rounded-full border border-tiffany text-tiffany-deep hover:bg-tiffany hover:text-white transition-all flex items-center gap-2 font-bold text-xs uppercase tracking-widest"
+          <div className="flex items-center space-x-4">
+             <button 
+                onClick={() => setIsHelpOpen(true)}
+                className="p-3 text-slate-400 hover:text-tiffany-deep hover:bg-tiffany/5 rounded-full transition-all"
+                title="時空手冊"
               >
-                <Home className="w-4 h-4"/>
-                <span>返回星盤</span>
+                <BookOpen className="w-6 h-6" />
               </button>
-            )}
           </div>
         </div>
       </header>
 
-      <main className="px-4 flex-grow container mx-auto">
+      <main className="flex-grow max-w-6xl mx-auto w-full px-6 py-10">
         {view === 'list' ? (
           <CaseList 
             cases={cases}
@@ -127,7 +116,9 @@ const App: React.FC = () => {
             onCreate={handleCreateCase}
             onDelete={(e, id) => {
               e.stopPropagation();
-              deleteCase(id);
+              if (window.confirm('確定要刪除這條星軌紀錄嗎？此動作無法復原。')) {
+                deleteCase(id);
+              }
             }}
             onUpdateGlobalFiles={updateGlobalFiles}
             onRestore={handleRestore}
@@ -144,24 +135,20 @@ const App: React.FC = () => {
               onUpdateActiveCase={updateActiveCase}
               onUpdateDates={updateDates}
               onToggleCheck={toggleCheck}
+              onUpdateCompletionDate={updateCompletionDate}
               onUpdateGlobalFiles={updateGlobalFiles}
             />
           )
         )}
       </main>
 
-      <footer className="py-12 bg-white/20 border-t border-tiffany/10 mt-20">
-        <div className="max-w-4xl mx-auto text-center">
-          <div className="flex justify-center gap-6 mb-6 opacity-40">
-            <span className="text-xl text-tiffany-deep cinzel">♅</span>
-            <span className="text-xl text-tiffany-deep cinzel">♆</span>
-            <span className="text-xl text-tiffany-deep cinzel">♇</span>
-            <span className="text-xl text-tiffany-deep cinzel">♄</span>
+      <footer className="py-12 border-t border-tiffany/10">
+        <div className="max-w-6xl mx-auto px-6 text-center">
+          <div className="flex justify-center items-center space-x-2 text-tiffany/30 font-bold uppercase tracking-[0.5em] text-[10px]">
+            <Star className="w-3 h-3" />
+            <span>Protecting the balance of time and justice</span>
+            <Star className="w-3 h-3" />
           </div>
-          <p className="text-[12px] text-slate-400 font-bold uppercase tracking-[0.4em]">
-            守護太陽系邊緣的真相 ・ 113 年修正法案
-          </p>
-          <p className="text-[9px] text-tiffany-deep/50 mt-3 italic">Eternal Sentinel Compliance Engine v4.2</p>
         </div>
       </footer>
     </div>

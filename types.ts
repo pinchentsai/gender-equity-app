@@ -33,6 +33,7 @@ export interface CaseData {
   description: string;
   dates: CaseDates;
   checklist: Record<string, boolean>;
+  completionDates: Record<string, string>; // 新增：儲存各任務實際完成日期
   transcripts: InterviewTranscript[];
   investigationReport: string;
   extensionMonths: number; // 0, 1, or 2

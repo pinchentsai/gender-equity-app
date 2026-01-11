@@ -20,7 +20,7 @@ interface CaseListProps {
 // 時效鍵值對應的顯示標籤
 const DEADLINE_LABELS: Record<string, string> = {
   report: "1.2 法定通報",
-  handover: "2.2 受理審查",
+  handover: "2.2 申請書移交性平會",
   meetingDecide: "2.4 受理通知",
   nonAcceptanceAppeal: "2.4 不受理申復",
   nonAcceptanceAppealReview: "2.5-2 申復處理",

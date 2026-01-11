@@ -40,7 +40,8 @@ export const useCaseManagement = () => {
               phase6AppealStatus: c.phase6AppealStatus || 'pending',
               phase6AppealResult: c.phase6AppealResult || 'pending',
               phase6AppealFollowUp: c.phase6AppealFollowUp || 'pending',
-              phase6RemedyStatus: c.phase6RemedyStatus || 'pending'
+              phase6RemedyStatus: c.phase6RemedyStatus || 'pending',
+              completionDates: c.completionDates || {} // 確保 completionDates 存在
             };
           });
           setCases(migration as CaseData[]);
@@ -144,6 +145,7 @@ export const useCaseManagement = () => {
         reinvestigationStart: ''
       },
       checklist: {},
+      completionDates: {}, // 初始化 completionDates
       transcripts: [],
       investigationReport: "",
       extensionMonths: 0,
@@ -189,6 +191,16 @@ export const useCaseManagement = () => {
     });
   }, [activeCase, updateActiveCase]);
 
+  const updateCompletionDate = useCallback((taskId: string, date: string) => {
+    if (!activeCase) return;
+    updateActiveCase({
+      completionDates: {
+        ...activeCase.completionDates,
+        [taskId]: date
+      }
+    });
+  }, [activeCase, updateActiveCase]);
+
   const updateGlobalFiles = useCallback((newFiles: KnowledgeFile[]) => {
     setGlobalFiles(newFiles);
   }, []);
@@ -208,6 +220,7 @@ export const useCaseManagement = () => {
     updateActiveCase,
     updateDates,
     toggleCheck,
+    updateCompletionDate,
     updateGlobalFiles
   };
 };
