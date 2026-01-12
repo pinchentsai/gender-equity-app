@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Home, Sparkles, Gem, Compass, Star, Moon, Heart, Shield, Loader, BookOpen } from 'lucide-react';
+import { Home, Sparkles, Gem, Compass, Star, Moon, Heart, Shield, Loader, BookOpen, ChevronRight } from 'lucide-react';
 import { useCaseManagement } from './hooks/useCaseManagement';
 import { PHASES_DATA } from './constants';
 import CaseList from './components/CaseList';
@@ -8,7 +8,6 @@ import CaseDetail from './components/CaseDetail';
 import HelpTutorial from './components/HelpTutorial';
 import { isTaskLocked } from './utils/dateUtils';
 
-// Fix: Add the missing implementation and default export for the App component to resolve the "no default export" error.
 const App: React.FC = () => {
   const [view, setView] = useState<'list' | 'detail'>('list');
   const [isHelpOpen, setIsHelpOpen] = useState(false);
@@ -50,11 +49,9 @@ const App: React.FC = () => {
     const isReinvestigationMode = c.phase6AppealFollowUp === 'reinvestigation';
 
     for (const phase of PHASES_DATA) {
-      // 跳過隱藏的星軌 (如 6.5 僅在重新調查模式顯示)
       if (phase.id === 6.5 && !isReinvestigationMode) continue;
 
       const tasks = [...phase.tasks];
-      // 處理動態任務擴充 (2.5 申復支線)
       if (phase.id === 2 && c.decisionStatus === 'not_accepted' && c.filedAppeal) {
         tasks.push({ id: "2.5-1", text: "召開性平會重新議決 (申復處理)", note: "", unit: "" });
         tasks.push({ id: "2.5-2", text: "書面通知申復結果", note: "", unit: "" });
@@ -62,12 +59,8 @@ const App: React.FC = () => {
       }
 
       for (const task of tasks) {
-        // 已勾選則跳過
         if (c.checklist[task.id]) continue;
-        
-        // 如果任務是被鎖定的，也跳過，尋找下一個可執行的任務
         if (isTaskLocked(c, task.id)) continue;
-
         return `${task.id} ${task.text}`;
       }
     }
@@ -95,39 +88,56 @@ const App: React.FC = () => {
     <div className="min-h-screen flex flex-col selection:bg-tiffany/30 selection:text-tiffany-deep">
       <HelpTutorial isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
       
-      <header className="bg-white/70 backdrop-blur-xl p-6 sticky top-0 z-50 border-b border-tiffany/30 shadow-[0_2px_15px_rgba(129,216,208,0.2)]">
+      <header className="bg-white/80 backdrop-blur-xl p-4 md:p-6 sticky top-0 z-50 border-b border-tiffany/30 shadow-[0_2px_15px_rgba(129,216,208,0.1)]">
         <div className="max-w-6xl mx-auto flex justify-between items-center">
           <div 
-            className="flex items-center space-x-4 cursor-pointer group" 
+            className="flex items-center space-x-3 md:space-x-4 cursor-pointer group overflow-hidden" 
             onClick={() => setView('list')}
           >
-            <div className="relative">
-              <div className="bg-[#81d8d0] p-3 rounded-full shadow-lg shadow-tiffany/20 transform group-hover:rotate-[360deg] transition-transform duration-700">
-                <Shield className="w-6 h-6 text-white" />
+            <div className="relative shrink-0">
+              <div className="bg-[#81d8d0] p-2 md:p-3 rounded-full shadow-lg shadow-tiffany/20 transform group-hover:rotate-[360deg] transition-transform duration-700">
+                <Shield className="w-5 h-5 md:w-6 md:h-6 text-white" />
               </div>
             </div>
-            <div>
-              <h1 className="text-2xl font-bold text-slate-700 cinzel tracking-widest">
-                星際守護者・性平星軌
-              </h1>
-              <div className="text-[10px] text-tiffany-deep font-black tracking-widest uppercase flex items-center">
-                <span className="mr-2">✦</span> Outer Sentinels: Equity Orbit
-              </div>
+            <div className="truncate">
+              {view === 'detail' && activeCase ? (
+                <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-3">
+                  <h1 className="text-sm md:text-base font-bold text-slate-400 cinzel tracking-widest hidden sm:block">
+                    星際守護者
+                  </h1>
+                  <ChevronRight className="w-4 h-4 text-slate-300 hidden sm:block" />
+                  <div className="flex flex-col">
+                    <span className="text-[10px] text-tiffany-deep font-black tracking-widest uppercase mb-0.5">目前守護星軌</span>
+                    <h2 className="text-lg md:text-xl font-bold text-slate-700 truncate max-w-[200px] md:max-w-md">
+                      {activeCase.name}
+                    </h2>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <h1 className="text-xl md:text-2xl font-bold text-slate-700 cinzel tracking-widest">
+                    星際守護者・性平星軌
+                  </h1>
+                  <div className="text-[10px] text-tiffany-deep font-black tracking-widest uppercase flex items-center">
+                    <span className="mr-2">✦</span> Outer Sentinels: Equity Orbit
+                  </div>
+                </>
+              )}
             </div>
           </div>
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2 md:space-x-4 shrink-0">
              <button 
                 onClick={() => setIsHelpOpen(true)}
-                className="p-3 text-slate-400 hover:text-tiffany-deep hover:bg-tiffany/5 rounded-full transition-all"
+                className="p-2 md:p-3 text-slate-400 hover:text-tiffany-deep hover:bg-tiffany/5 rounded-full transition-all"
                 title="時空手冊"
               >
-                <BookOpen className="w-6 h-6" />
+                <BookOpen className="w-5 h-5 md:w-6 md:h-6" />
               </button>
           </div>
         </div>
       </header>
 
-      <main className="flex-grow max-w-6xl mx-auto w-full px-6 py-10">
+      <main className="flex-grow max-w-6xl mx-auto w-full px-4 md:px-6 py-10">
         {view === 'list' ? (
           <CaseList 
             cases={cases}
