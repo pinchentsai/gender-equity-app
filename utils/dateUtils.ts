@@ -62,6 +62,43 @@ export const DEADLINE_TASK_MAP: Record<string, string> = {
   remedy: "6.4"
 };
 
+/**
+ * 判定特定任務是否處於鎖定狀態
+ */
+export const isTaskLocked = (c: CaseData, taskId: string): boolean => {
+  const isStatutoryReportDone = c.checklist['1.2'] === true;
+  const isCaseTerminated = c.decisionStatus === 'not_accepted' && c.filedAppeal === false;
+  const isInvestigationUnsubstantiated = c.investigationResult === 'unsubstantiated';
+  const isStudentVsStudent = c.incidentRoleType === 'student_vs_student_middle_up' || c.incidentRoleType === 'student_vs_student_elementary';
+  const isElementaryStudentPerpetrator = c.incidentRoleType === 'student_vs_student_elementary';
+  const isPhase6LockedByNoAppeal = c.phase6AppealStatus === 'none';
+  const isPhase6Dismissed = c.phase6AppealStatus === 'filed' && c.phase6AppealResult === 'unsubstantiated';
+  const isReinvestigationMode = c.phase6AppealFollowUp === 'reinvestigation';
+
+  // 1. 法定通報未完成則鎖定受理
+  if (taskId === "2.3" && !isStatutoryReportDone) return true;
+
+  // 2. 不受理且未申復則鎖定後續所有星軌 (3-7)
+  const phaseNum = parseFloat(taskId.split('.')[0]);
+  if (phaseNum >= 3 && isCaseTerminated) return true;
+
+  // 3. 調查不成立鎖定懲處與執行
+  const LOCKED_IF_UNSUBSTANTIATED = ['4.2', '4.3', '4.4', '5.1', '5.2', '5.4'];
+  if (LOCKED_IF_UNSUBSTANTIATED.includes(taskId) && isInvestigationUnsubstantiated) return true;
+
+  // 4. 行為人國小生案件不適用移送議處
+  const LOCKED_IF_STUDENT = ['4.4', '5.1', '5.2'];
+  if (LOCKED_IF_STUDENT.includes(taskId) && isStudentVsStudent) return true;
+  if (taskId === '4.3' && isElementaryStudentPerpetrator) return true;
+
+  // 5. 申復相關邏輯
+  if (taskId.startsWith('6.') && taskId !== "6.1" && isPhase6LockedByNoAppeal) return true;
+  if (taskId === "6.3" && isPhase6Dismissed) return true;
+  if (taskId === "6.4" && isReinvestigationMode) return true;
+
+  return false;
+};
+
 export const calculateDeadlines = (caseData: Partial<CaseData>) => {
   if (!caseData || !caseData.dates) return {} as any;
   const d = caseData.dates;

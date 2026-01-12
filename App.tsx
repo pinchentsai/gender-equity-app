@@ -6,6 +6,7 @@ import { PHASES_DATA } from './constants';
 import CaseList from './components/CaseList';
 import CaseDetail from './components/CaseDetail';
 import HelpTutorial from './components/HelpTutorial';
+import { isTaskLocked } from './utils/dateUtils';
 
 // Fix: Add the missing implementation and default export for the App component to resolve the "no default export" error.
 const App: React.FC = () => {
@@ -46,9 +47,28 @@ const App: React.FC = () => {
   };
 
   const getNextStepText = (c: any) => {
+    const isReinvestigationMode = c.phase6AppealFollowUp === 'reinvestigation';
+
     for (const phase of PHASES_DATA) {
-      for (const task of phase.tasks) {
-        if (!c.checklist[task.id]) return `${task.id} ${task.text}`;
+      // 跳過隱藏的星軌 (如 6.5 僅在重新調查模式顯示)
+      if (phase.id === 6.5 && !isReinvestigationMode) continue;
+
+      const tasks = [...phase.tasks];
+      // 處理動態任務擴充 (2.5 申復支線)
+      if (phase.id === 2 && c.decisionStatus === 'not_accepted' && c.filedAppeal) {
+        tasks.push({ id: "2.5-1", text: "召開性平會重新議決 (申復處理)", note: "", unit: "" });
+        tasks.push({ id: "2.5-2", text: "書面通知申復結果", note: "", unit: "" });
+        tasks.push({ id: "2.5-3", text: "啟動調查(若申復有理由)", note: "", unit: "" });
+      }
+
+      for (const task of tasks) {
+        // 已勾選則跳過
+        if (c.checklist[task.id]) continue;
+        
+        // 如果任務是被鎖定的，也跳過，尋找下一個可執行的任務
+        if (isTaskLocked(c, task.id)) continue;
+
+        return `${task.id} ${task.text}`;
       }
     }
     return "星系秩序恢復達成";

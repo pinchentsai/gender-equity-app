@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { CaseData, CaseDates, KnowledgeFile, InterviewTranscript, Task } from '../types';
 import { PHASES_DATA, getIcon } from '../constants';
-import { formatDate, getDeadlineStatus, isValidSequence, DEADLINE_TASK_MAP } from '../utils/dateUtils';
+import { formatDate, getDeadlineStatus, isValidSequence, DEADLINE_TASK_MAP, isTaskLocked } from '../utils/dateUtils';
 import GeminiAssistant from './GeminiAssistant';
 import ProgressBar from './ProgressBar';
 import { callGeminiReportGenerator } from '../services/geminiService';
@@ -50,21 +50,13 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
 
   const isCaseTerminated = activeCase.decisionStatus === 'not_accepted' && activeCase.filedAppeal === false;
   const isInvestigationUnsubstantiated = activeCase.investigationResult === 'unsubstantiated';
-  const LOCKED_TASKS_IF_UNSUBSTANTIATED = ['4.2', '4.3', '4.4', '5.1', '5.2', '5.4'];
-
   const isTeacherVsStudent = activeCase.incidentRoleType === 'teacher_vs_student';
   const isStudentVsStudent = activeCase.incidentRoleType === 'student_vs_student_middle_up' || activeCase.incidentRoleType === 'student_vs_student_elementary';
-  
   const isElementaryStudentPerpetrator = activeCase.incidentRoleType === 'student_vs_student_elementary';
-  
-  const LOCKED_TASKS_IF_STUDENT_VS_STUDENT = isElementaryStudentPerpetrator 
-    ? ['4.3', '4.4', '5.1', '5.2'] 
-    : ['4.4', '5.1', '5.2'];
 
   const isPhase6LockedByNoAppeal = activeCase.phase6AppealStatus === 'none';
   const isPhase6Dismissed = activeCase.phase6AppealStatus === 'filed' && activeCase.phase6AppealResult === 'unsubstantiated';
   const isReinvestigationMode = activeCase.phase6AppealFollowUp === 'reinvestigation';
-
   const isStatutoryReportDone = activeCase.checklist['1.2'] === true;
 
   const acceptanceDateError = !isValidSequence(activeCase.dates.known, activeCase.dates.acceptance);
@@ -417,8 +409,7 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
               const completedCount = phase.tasks.filter(t => activeCase.checklist?.[t.id]).length;
               const theme = getPhaseTheme(phase.id);
               
-              const isPhaseTerminated = isCaseTerminated && phase.id >= 3;
-              const isPhaseLocked = isPhaseTerminated;
+              const isPhaseLocked = isCaseTerminated && phase.id >= 3;
               const isOrbit6Disabled = isPhase6LockedByNoAppeal && phase.id === 6;
 
               return (
@@ -429,7 +420,7 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
                       <div>
                         <h3 className={`font-bold text-slate-700 text-base ${isExpanded ? theme.text : ''}`}>
                           {phase.title} 
-                          {isPhaseTerminated && " (案件已結案/鎖定)"}
+                          {isPhaseLocked && " (案件已結案/鎖定)"}
                           {isOrbit6Disabled && " (全案確定/鎖定)"}
                         </h3>
                         <div className={`text-[14px] font-black mt-1 uppercase tracking-widest ${isExpanded ? theme.text : 'text-slate-400'}`}>完成度：{completedCount} / {phase.tasks.length}</div>
@@ -440,18 +431,9 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
                   {isExpanded && !isPhaseLocked && (
                     <div className="p-8 space-y-6 animate-fadeIn bg-white/50">
                       {phase.tasks.map(task => {
-                        const isTaskLockedByUnsubstantiated = isInvestigationUnsubstantiated && LOCKED_TASKS_IF_UNSUBSTANTIATED.includes(task.id);
-                        const isTaskLockedByStudentVsStudent = isStudentVsStudent && LOCKED_TASKS_IF_STUDENT_VS_STUDENT.includes(task.id);
-                        const isTaskLockedByNoAppeal = isPhase6LockedByNoAppeal && phase.id === 6 && task.id !== "6.1";
-                        const isTaskLockedByDismissal = isPhase6Dismissed && task.id === "6.3";
-                        const isTaskLockedByReinvestigation = isReinvestigationMode && task.id === "6.4";
-                        const isTaskLockedByStatutoryReport = !isStatutoryReportDone && task.id === "2.3";
-
-                        const isCurrentlyLocked = isTaskLockedByUnsubstantiated || isTaskLockedByNoAppeal || isTaskLockedByReinvestigation || isTaskLockedByStudentVsStudent || isTaskLockedByStatutoryReport || (isTaskLockedByDismissal && !activeCase.phase6AppealResult);
-
+                        const isCurrentlyLocked = isTaskLocked(activeCase, task.id);
                         const deadlineRef = task.deadlineRef;
                         const status = deadlineRef ? getDeadlineStatus(deadlines[deadlineRef], activeCase.checklist[task.id]) : 'ok';
-                        
                         const isHourglassTask = hourglassTaskIds.includes(task.id);
 
                         return (
@@ -474,12 +456,17 @@ const CaseDetail: React.FC<CaseDetailProps> = ({
                                     
                                     <span className={`font-bold text-base ${task.important ? 'text-red-500' : 'text-slate-700'} ${activeCase.checklist?.[task.id] ? 'line-through opacity-40' : ''}`}>
                                       {task.text} 
-                                      {isTaskLockedByUnsubstantiated && " (不成立故鎖定)"}
-                                      {isTaskLockedByStudentVsStudent && " (行為人國小生案件不適用移送議處程序)"}
-                                      {isTaskLockedByNoAppeal && " (全案確定故鎖定)"}
-                                      {isTaskLockedByDismissal && task.id === "6.3" && " (申復駁回故鎖定)"}
-                                      {isTaskLockedByReinvestigation && " (重新調查中，暫停救濟程序)"}
-                                      {isTaskLockedByStatutoryReport && " (⚠ 請先完成 1.2 法定通報以解鎖)"}
+                                      {isCurrentlyLocked && (
+                                        <span className="text-[11px] ml-2 text-slate-400 italic">
+                                          ({
+                                            task.id === "2.3" ? "⚠ 請先完成 1.2 法定通報" :
+                                            isInvestigationUnsubstantiated ? "不成立故鎖定" :
+                                            isStudentVsStudent ? "行為人國小生案不適用" :
+                                            isPhase6LockedByNoAppeal ? "全案確定鎖定" :
+                                            isCaseTerminated ? "案件已結案" : "當前狀態鎖定"
+                                          })
+                                        </span>
+                                      )}
                                     </span>
                                   </div>
 
