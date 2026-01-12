@@ -92,9 +92,9 @@ ${transcriptsText}
 - 採用台灣標準校園性平調查報告之書面體裁。
 `;
 
-    // Complex legal reasoning task: use gemini-3-pro-preview for higher quality reasoning.
+    // 切換為 gemini-3-flash-preview 以解決免費 API Key 的 Quota 限制問題
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview',
+      model: 'gemini-3-flash-preview',
       contents: prompt,
       config: {
         systemInstruction: "你是一位資深的校園性平調查專家與法務顧問，擅長撰寫具備高度法律涵攝深度與事實論述能力的調查報告. 你的目標是產出一份能經得起申復審議挑戰的專業報告草案。",
