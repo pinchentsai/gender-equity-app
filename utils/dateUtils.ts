@@ -144,10 +144,16 @@ export const calculateDeadlines = (caseData: Partial<CaseData>) => {
     deadlines.nonAcceptanceAppealReview = date;
   }
 
-  // 4. 調查結案期限 (受理日 + 2個月 + 延長月份)
-  if (d.acceptance) {
-    const accDate = new Date(d.acceptance);
-    const investDate = new Date(accDate);
+  // 4. 調查結案期限
+  // 依使用者要求：起算基準點為 檢核表2.4書面通知當事人 之實際完成日 (completionDates['2.4']) 之「隔日」
+  // 若尚未完成 2.4 則暫以 2.3 受理日 (d.acceptance) 之「隔日」作為基準
+  const investigationBaseDateStr = caseData.completionDates?.['2.4'] || d.acceptance;
+  if (investigationBaseDateStr) {
+    const baseDate = new Date(investigationBaseDateStr);
+    // 關鍵修改：起算點為隔日 (+1)
+    baseDate.setDate(baseDate.getDate() + 1);
+    
+    const investDate = new Date(baseDate);
     investDate.setMonth(investDate.getMonth() + 2 + (caseData.extensionMonths || 0));
     deadlines.investigation = investDate;
   }
