@@ -246,7 +246,7 @@ export const PHASES_DATA: Phase[] = [
         text: "通報與追蹤輔導 (轉校/轉職追蹤)", 
         note: "性平法§28-2/3：行為人轉校或轉職應主動通報受聘學校，並持續追蹤輔導。", 
         unit: "學校專責單位", 
-        important: true
+        important: true 
       },
       { 
         id: "7.2", 
@@ -259,6 +259,12 @@ export const PHASES_DATA: Phase[] = [
         text: "檔案建立與保存 (原始檔案與報告檔案)", 
         note: "防治準則§34-1：應指定專責單位，相關檔案應保存25年。", 
         unit: "學校專責單位" 
+      },
+      { 
+        id: "7.4", 
+        text: "辦理相關經費核銷", 
+        note: "依學校經費核銷相關規定辦理（如委員交通費、出席費、稿費、餐費等）。", 
+        unit: "學務處/總務處" 
       },
     ]
   }
