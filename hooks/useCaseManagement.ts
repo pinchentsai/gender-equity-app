@@ -176,9 +176,27 @@ export const useCaseManagement = () => {
 
   const updateDates = useCallback((field: keyof CaseDates, value: string) => {
     if (!activeCase) return;
-    updateActiveCase({
+    
+    const updates: Partial<CaseData> = {
       dates: { ...activeCase.dates, [field]: value }
-    });
+    };
+
+    // 連動任務完成日期與勾選狀態
+    if (field === 'reportHandover') {
+      updates.completionDates = { ...activeCase.completionDates, '4.1': value };
+      updates.checklist = { ...activeCase.checklist, '4.1': !!value };
+    } else if (field === 'resultNotice') {
+      updates.completionDates = { ...activeCase.completionDates, '5.3': value };
+      updates.checklist = { ...activeCase.checklist, '5.3': !!value };
+    } else if (field === 'known') {
+      updates.completionDates = { ...activeCase.completionDates, '1.1': value };
+      updates.checklist = { ...activeCase.checklist, '1.1': !!value };
+    } else if (field === 'acceptance') {
+      updates.completionDates = { ...activeCase.completionDates, '2.3': value };
+      updates.checklist = { ...activeCase.checklist, '2.3': !!value };
+    }
+
+    updateActiveCase(updates);
   }, [activeCase, updateActiveCase]);
 
   const toggleCheck = useCallback((taskId: string) => {
@@ -193,12 +211,30 @@ export const useCaseManagement = () => {
 
   const updateCompletionDate = useCallback((taskId: string, date: string) => {
     if (!activeCase) return;
-    updateActiveCase({
+    
+    const updates: Partial<CaseData> = {
       completionDates: {
         ...activeCase.completionDates,
         [taskId]: date
+      },
+      checklist: {
+        ...activeCase.checklist,
+        [taskId]: !!date
       }
-    });
+    };
+
+    // 連動基本資料日期
+    if (taskId === '4.1') {
+      updates.dates = { ...activeCase.dates, reportHandover: date };
+    } else if (taskId === '5.3') {
+      updates.dates = { ...activeCase.dates, resultNotice: date };
+    } else if (taskId === '1.1') {
+      updates.dates = { ...activeCase.dates, known: date };
+    } else if (taskId === '2.3') {
+      updates.dates = { ...activeCase.dates, acceptance: date };
+    }
+
+    updateActiveCase(updates);
   }, [activeCase, updateActiveCase]);
 
   const updateGlobalFiles = useCallback((newFiles: KnowledgeFile[]) => {
